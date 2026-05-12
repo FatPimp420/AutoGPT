@@ -1,0 +1,103 @@
+# Ruflo V3 — Trading Swarm Workflow
+# Topology: hierarchical-mesh, 50 agents max
+# Trigger: POST /ap/v1/agent/tasks with any trading command
+
+name: trading-swarm
+version: "1.0"
+topology: hierarchical-mesh
+
+agents:
+  coordinator:
+    role: orchestrator
+    description: "Routes incoming tasks; decides which sub-agents to spawn"
+    singleton: true
+
+  data_fetcher:
+    role: worker
+    description: "Fetches or generates OHLCV data for a single symbol"
+    replicas: 5  # one per default symbol, auto-scale up to 20
+    max_replicas: 20
+
+  signal_generator:
+    role: worker
+    description: "Runs the configured strategy and emits buy/sell/null signal"
+    replicas: 4  # one per strategy (ema_cross, rsi, macd, bollinger)
+    max_replicas: 10
+
+  risk_checker:
+    role: worker
+    description: "Applies position sizing, drawdown, and daily-loss circuit breakers"
+    replicas: 1
+    max_replicas: 5
+
+  paper_executor:
+    role: worker
+    description: "Records paper trades and updates portfolio state"
+    replicas: 1
+    max_replicas: 5
+
+  backtester:
+    role: worker
+    description: "Runs walk-forward or full backtests with fees and slippage"
+    replicas: 5
+    max_replicas: 25
+
+pipeline:
+  - id: fetch_data
+    agent: data_fetcher
+    fanout: symbols          # one task per symbol in the symbols list
+    input_key: symbol
+    output_key: ohlcv
+
+  - id: generate_signals
+    agent: signal_generator
+    depends_on: fetch_data
+    input_key: ohlcv
+    output_key: signal
+
+  - id: check_risk
+    agent: risk_checker
+    depends_on: generate_signals
+    input_key: signal
+    output_key: approved_signal
+
+  - id: paper_execute
+    agent: paper_executor
+    depends_on: check_risk
+    input_key: approved_signal
+    output_key: trade_record
+    condition: "approved_signal.allowed == true"
+
+memory:
+  namespace: trading-swarm
+  persist: true
+  keys:
+    - signals          # latest signal per symbol
+    - positions        # current paper positions
+    - equity_curve     # running equity history
+    - trade_log        # all executed paper trades
+
+hooks:
+  on_signal:
+    - action: memory_store
+      key: "signals.{symbol}"
+      value: "{signal}"
+  on_trade:
+    - action: memory_store
+      key: "trade_log.{task_id}"
+      value: "{trade_record}"
+
+symbols:
+  - BTC/USDT
+  - ETH/USDT
+  - SOL/USDT
+  - BNB/USDT
+  - XRP/USDT
+
+strategies:
+  default: rsi
+  available:
+    - ema_cross
+    - rsi
+    - macd
+    - bollinger
