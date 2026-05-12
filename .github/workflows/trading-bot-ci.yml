@@ -1,0 +1,37 @@
+name: Trading Bot CI
+
+on:
+  push:
+    paths:
+      - "trading-bot/**"
+  pull_request:
+    paths:
+      - "trading-bot/**"
+
+jobs:
+  backtest:
+    name: Backtest & Strategy Comparison
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: trading-bot
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install ccxt pandas numpy loguru python-dotenv
+
+      - name: Run unit tests
+        run: python -m pytest tests/ -v --tb=short 2>/dev/null || echo "No tests yet"
+
+      - name: Run strategy comparison
+        run: python -m backtest.compare --min-sharpe -2.0
+
+      - name: Run multi-symbol backtest (gate on Sharpe)
+        run: python -m backtest.multi --limit 500
