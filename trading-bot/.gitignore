@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+
+# Environment files
+.env
+*.env
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# Test / coverage artefacts
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Pre-trained ML model files
+ml_models/

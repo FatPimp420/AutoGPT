@@ -18,16 +18,49 @@ class BacktestResult:
             return {}
         df = self.df
         pnl = df["pnl"]
+
+        # ── Equity-curve drawdown ────────────────────────────────────────────
         equity = pd.Series(self.equity_curve)
         peak = equity.cummax()
         drawdown = (equity - peak) / peak
+        max_drawdown: float = float(drawdown.min())  # negative fraction, e.g. -0.15
+
+        # ── Annualised return (compound) ─────────────────────────────────────
+        n_trades = len(df)
+        total_pnl_pct: float = float(pnl.sum())
+        # Approximate: treat each trade as one day of 252 trading days
+        annualised_return: float = total_pnl_pct * (252 / max(n_trades, 1))
+
+        # ── Calmar ratio ─────────────────────────────────────────────────────
+        calmar_ratio: float = (
+            annualised_return / abs(max_drawdown) if max_drawdown != 0.0 else 0.0
+        )
+
+        # ── Profit factor ────────────────────────────────────────────────────
+        gross_profit: float = float(pnl[pnl > 0].sum())
+        gross_loss: float = float(abs(pnl[pnl < 0].sum()))
+        profit_factor: float = gross_profit / gross_loss if gross_loss > 0 else 0.0
+
+        # ── Max consecutive losses ───────────────────────────────────────────
+        max_consec_losses: int = 0
+        current_streak: int = 0
+        for p in pnl:
+            if p < 0:
+                current_streak += 1
+                max_consec_losses = max(max_consec_losses, current_streak)
+            else:
+                current_streak = 0
+
         return {
-            "total_trades": len(df),
-            "win_rate": (pnl > 0).mean(),
-            "total_pnl_pct": pnl.sum(),
-            "avg_trade_pnl_pct": pnl.mean(),
-            "max_drawdown": drawdown.min(),
-            "sharpe": pnl.mean() / pnl.std() * np.sqrt(252) if pnl.std() > 0 else 0,
+            "total_trades": n_trades,
+            "win_rate": float((pnl > 0).mean()),
+            "total_pnl_pct": total_pnl_pct,
+            "avg_trade_pnl_pct": float(pnl.mean()),
+            "max_drawdown": max_drawdown,
+            "sharpe": float(pnl.mean() / pnl.std() * np.sqrt(252)) if pnl.std() > 0 else 0.0,
+            "calmar_ratio": calmar_ratio,
+            "profit_factor": profit_factor,
+            "max_consecutive_losses": max_consec_losses,
         }
 
 

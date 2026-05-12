@@ -5,7 +5,7 @@ Usage:
   strategy = get_strategy("ema_cross", fast=9, slow=21)
   strategy = get_strategy(None)  # reads DEFAULT_STRATEGY env var, fallback "rsi"
 
-Supported names: ema_cross, rsi, macd, bollinger
+Supported names: ema_cross, rsi, macd, bollinger, vwap, stoch_rsi
 """
 import os
 
@@ -14,12 +14,16 @@ from strategies.bollinger import BollingerStrategy
 from strategies.ema_cross import EMACrossStrategy
 from strategies.macd import MACDStrategy
 from strategies.rsi import RSIStrategy
+from strategies.stoch_rsi import StochRSIStrategy
+from strategies.vwap import VWAPStrategy
 
 STRATEGY_REGISTRY: dict[str, type] = {
     "ema_cross": EMACrossStrategy,
     "rsi": RSIStrategy,
     "macd": MACDStrategy,
     "bollinger": BollingerStrategy,
+    "vwap": VWAPStrategy,
+    "stoch_rsi": StochRSIStrategy,
 }
 
 

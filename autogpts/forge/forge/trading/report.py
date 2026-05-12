@@ -100,12 +100,25 @@ def compute_symbol_stats(trades: list[dict]) -> dict[str, dict]:
         # Sharpe = mean / std * sqrt(252)
         sharpe = _sharpe(pnl_values)
 
+        # Calmar ratio: annualised_return / abs(max_drawdown)
+        annualised_return = total_pnl * (252 / max(len(pnl_values), 1))
+        calmar_ratio = (
+            annualised_return / abs(max_drawdown) if max_drawdown != 0.0 else 0.0
+        )
+
+        # Profit factor: gross_profit / gross_loss
+        gross_profit = sum(p for p in pnl_values if p > 0)
+        gross_loss = abs(sum(p for p in pnl_values if p < 0))
+        profit_factor = gross_profit / gross_loss if gross_loss > 0 else 0.0
+
         result[sym] = {
             "trades": n,
             "win_rate": win_rate,
             "total_pnl": total_pnl,
             "max_drawdown": max_drawdown,
             "sharpe": sharpe,
+            "calmar_ratio": calmar_ratio,
+            "profit_factor": profit_factor,
         }
 
     return result
@@ -234,17 +247,24 @@ def print_report(
     else:
         print("Per-Symbol Summary:")
 
-        headers = ["Symbol", "Trades", "Win Rate", "Total PnL", "Max DD", "Sharpe"]
-        col_widths = [10, 6, 8, 9, 8, 7]
+        headers = [
+            "Symbol", "Trades", "Win Rate", "Total PnL",
+            "Max DD", "Calmar", "Prof.F", "Sharpe",
+        ]
+        col_widths = [10, 6, 8, 9, 8, 7, 6, 7]
 
         rows = []
         for sym, s in sorted(stats.items()):
+            calmar = s.get("calmar_ratio", 0.0)
+            prof_f = s.get("profit_factor", 0.0)
             rows.append([
                 sym,
                 str(s["trades"]),
                 _fmt_pct_neutral(s["win_rate"]),
                 _fmt_pct(s["total_pnl"]),
                 _fmt_pct(s["max_drawdown"]),
+                f"{calmar:.2f}",
+                f"{prof_f:.2f}",
                 f'{s["sharpe"]:.2f}',
             ])
 
