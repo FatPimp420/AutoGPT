@@ -32,9 +32,26 @@ class BacktestResult:
 
 
 class Backtester:
-    def __init__(self, strategy: BaseStrategy, initial_capital: float = 10_000.0):
+    def __init__(
+        self,
+        strategy: BaseStrategy,
+        initial_capital: float = 10_000.0,
+        fee_rate: float = 0.001,    # 0.1% per side — Binance standard taker fee
+        slippage_rate: float = 0.0005,  # 0.05% per side — conservative estimate
+    ):
         self.strategy = strategy
         self.capital = initial_capital
+        self.fee_rate = fee_rate
+        self.slippage_rate = slippage_rate
+
+    def _fill_price(self, price: float, side: str) -> float:
+        """Apply slippage: buys fill slightly higher, sells slightly lower."""
+        if side == "buy":
+            return price * (1 + self.slippage_rate)
+        return price * (1 - self.slippage_rate)
+
+    def _apply_fee(self, notional: float) -> float:
+        return notional * (1 - self.fee_rate)
 
     def run(self, df: pd.DataFrame) -> BacktestResult:
         result = BacktestResult()
@@ -49,12 +66,20 @@ class Backtester:
             result.equity_curve.append(self.capital)
 
             if signal == "buy" and position is None:
-                position = {"side": "buy", "entry": price, "i": i}
+                entry = self._fill_price(price, "buy")
+                entry_after_fee = self._apply_fee(entry)
+                position = {"side": "buy", "entry": entry_after_fee, "i": i}
 
             elif signal == "sell" and position is not None:
-                pnl_pct = (price - position["entry"]) / position["entry"]
+                exit_price = self._fill_price(price, "sell")
+                exit_after_fee = self._apply_fee(exit_price)
+                pnl_pct = (exit_after_fee - position["entry"]) / position["entry"]
                 self.capital *= 1 + pnl_pct
-                result.trades.append({"entry": position["entry"], "exit": price, "pnl": pnl_pct})
+                result.trades.append({
+                    "entry": position["entry"],
+                    "exit": exit_after_fee,
+                    "pnl": pnl_pct,
+                })
                 position = None
 
         return result
