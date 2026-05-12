@@ -53,6 +53,10 @@ autoflake = "^2.2.0"
 pydevd-pycharm = "^233.6745.319"
 
 
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+addopts = "--import-mode=importlib"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
