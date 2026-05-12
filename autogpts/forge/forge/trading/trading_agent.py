@@ -128,12 +128,18 @@ class TradingAgent(ForgeAgent):
             strategy=strategy,
             equity=equity,
         )
+        sentiment_by_symbol = {
+            r.symbol: r.data.get("sentiment")
+            for r in swarm_result.pipeline_results
+            if r.role == "sentiment_agent" and r.data.get("sentiment")
+        }
         executions = [
             {
                 "symbol": r.symbol,
                 "executed": r.data.get("executed"),
                 "signal": r.data.get("signal"),
                 "qty": r.data.get("qty"),
+                "sentiment": sentiment_by_symbol.get(r.symbol),
             }
             for r in swarm_result.pipeline_results
             if r.role == "executor"

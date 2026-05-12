@@ -1,6 +1,6 @@
 """Ruflo-backed multi-agent trading swarm coordinator.
 
-Pipeline: DataFetcher → SignalGenerator → RiskChecker → PaperExecutor
+Pipeline: DataFetcher → SignalGenerator → SentimentAgent → RiskChecker → PaperExecutor
 All symbols run concurrently; each stage awaits the prior stage's output.
 """
 import asyncio
@@ -22,6 +22,12 @@ SYMBOLS_DEFAULT = [
 ]
 
 
+def _default_blender():
+    from sentiment.mock import MockSentimentProvider
+    from sentiment.blender import SignalBlender
+    return SignalBlender(provider=MockSentimentProvider())
+
+
 @dataclass
 class AgentResult:
     role: str
@@ -37,11 +43,15 @@ class SwarmResult:
     trades_executed: int = 0
     signals_generated: int = 0
     signals_blocked: int = 0
+    signals_blocked_by_sentiment: int = 0
+    signals_boosted: int = 0
 
     def summary(self) -> dict:
         return {
             "task_id": self.task_id,
             "signals_generated": self.signals_generated,
+            "signals_blocked_by_sentiment": self.signals_blocked_by_sentiment,
+            "signals_boosted_by_sentiment": self.signals_boosted,
             "signals_blocked_by_risk": self.signals_blocked,
             "paper_trades_executed": self.trades_executed,
             "agents_ran": len(self.pipeline_results),
@@ -49,10 +59,17 @@ class SwarmResult:
 
 
 class TradingSwarm:
-    """Coordinates the four trading agent roles across multiple symbols."""
+    """Coordinates the five trading agent roles across multiple symbols."""
 
-    def __init__(self, db=None):
+    def __init__(self, db=None, blender=None):
         self.db = db
+        self._blender = blender  # None = lazy-init default MockSentimentProvider
+
+    @property
+    def blender(self):
+        if self._blender is None:
+            self._blender = _default_blender()
+        return self._blender
 
     # ------------------------------------------------------------------ #
     # Individual agent roles (coroutines)                                 #
@@ -88,26 +105,60 @@ class TradingSwarm:
             data={"symbol": symbol, "strategy": strategy, "signal": signal},
         )
 
+    async def _sentiment_agent(self, signal_result: AgentResult) -> AgentResult:
+        """Agent role: blend strategy signal with news/Reddit sentiment."""
+        symbol = signal_result.symbol
+        if signal_result.error:
+            return AgentResult(
+                role="sentiment_agent", symbol=symbol, data={}, error=signal_result.error
+            )
+        raw_signal = signal_result.data.get("signal")
+        loop = asyncio.get_event_loop()
+        try:
+            blend = await loop.run_in_executor(
+                None, lambda: self.blender.blend(symbol, raw_signal)
+            )
+            result = blend.to_dict()
+            LOG.info(
+                f"[SentimentAgent] {symbol} signal={raw_signal} "
+                f"sentiment={blend.sentiment.label}({blend.sentiment.score:+.2f}) "
+                f"→ {blend.action} → final={blend.final_signal}"
+            )
+            return AgentResult(role="sentiment_agent", symbol=symbol, data=result)
+        except Exception as e:
+            LOG.error(f"[SentimentAgent] {symbol} error: {e}")
+            # Fail open: pass original signal through if sentiment errors
+            return AgentResult(
+                role="sentiment_agent",
+                symbol=symbol,
+                data={"final_signal": raw_signal, "blend_action": "error_passthrough"},
+            )
+
     async def _risk_checker(
         self,
-        signal_result: AgentResult,
+        sentiment_result: AgentResult,
         equity: float = 10_000.0,
         price_fallback: float = 1.0,
     ) -> AgentResult:
         """Agent role: apply risk rules and return approved/blocked decision."""
-        symbol = signal_result.symbol
-        if signal_result.error or signal_result.data.get("signal") is None:
+        symbol = sentiment_result.symbol
+        # Accept final_signal from sentiment agent, or fall back to original_signal
+        signal = (
+            sentiment_result.data.get("final_signal")
+            or sentiment_result.data.get("signal")
+        )
+        if sentiment_result.error or signal is None:
             return AgentResult(
                 role="risk_checker",
                 symbol=symbol,
                 data={"allowed": False, "reason": "no_signal"},
             )
-        signal = signal_result.data["signal"]
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             None,
             lambda: check_risk(signal, equity, price_fallback),
         )
+        result["signal"] = signal  # carry forward for executor
         LOG.info(f"[RiskChecker] {symbol} signal={signal} allowed={result['allowed']}")
         return AgentResult(role="risk_checker", symbol=symbol, data=result)
 
@@ -164,13 +215,18 @@ class TradingSwarm:
         async def _process_symbol(symbol: str):
             fetch = await self._data_fetcher(symbol, strategy, lookback_days)
             sig = await self._signal_generator(fetch, strategy)
-            risk = await self._risk_checker(sig, equity=equity)
+            sent = await self._sentiment_agent(sig)
+            risk = await self._risk_checker(sent, equity=equity)
             exec_ = await self._paper_executor(risk)
 
-            swarm_result.pipeline_results.extend([fetch, sig, risk, exec_])
+            swarm_result.pipeline_results.extend([fetch, sig, sent, risk, exec_])
 
             if sig.data.get("signal"):
                 swarm_result.signals_generated += 1
+            if sent.data.get("blend_action") == "contradicted":
+                swarm_result.signals_blocked_by_sentiment += 1
+            if sent.data.get("blend_action") == "boosted":
+                swarm_result.signals_boosted += 1
             if risk.data.get("allowed"):
                 swarm_result.trades_executed += 1
             else:
