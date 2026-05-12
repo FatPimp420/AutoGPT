@@ -23,7 +23,7 @@
       "args": [
         "-y",
         "mcp-obsidian",
-        "~/Obsidian"
+        "C:\\Users\\lachl\\vault\\Claude"
       ],
       "env": {},
       "autoStart": false
