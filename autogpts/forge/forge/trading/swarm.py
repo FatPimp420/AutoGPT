@@ -1,9 +1,10 @@
 """Ruflo-backed multi-agent trading swarm coordinator.
 
-Pipeline: DataFetcher → SignalGenerator → SentimentAgent → RiskChecker → PaperExecutor
+Pipeline: DataFetcher → SignalGenerator → SentimentAgent → MLVetoAgent → RiskChecker → SmartExecutor
 All symbols run concurrently; each stage awaits the prior stage's output.
 """
 import asyncio
+import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -45,6 +46,7 @@ class SwarmResult:
     signals_blocked: int = 0
     signals_blocked_by_sentiment: int = 0
     signals_boosted: int = 0
+    signals_vetoed_by_ml: int = 0
 
     def summary(self) -> dict:
         return {
@@ -53,6 +55,7 @@ class SwarmResult:
             "signals_blocked_by_sentiment": self.signals_blocked_by_sentiment,
             "signals_boosted_by_sentiment": self.signals_boosted,
             "signals_blocked_by_risk": self.signals_blocked,
+            "signals_vetoed_by_ml": self.signals_vetoed_by_ml,
             "paper_trades_executed": self.trades_executed,
             "agents_ran": len(self.pipeline_results),
         }
