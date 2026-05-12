@@ -1,6 +1,6 @@
 """
 Grid-search parameter optimiser for any strategy.
-Finds the parameter combination with the best average Sharpe across all symbols.
+Finds the parameter combination with the best average Sharpe or PnL across all symbols.
 """
 import sys
 import itertools
@@ -39,7 +39,7 @@ def grid_search(strategy_cls, param_grid: dict, symbols: list[str], n_candles: i
                          "avg_win_rate": sum(wrs) / len(wrs),
                          "symbols_traded": len(sharpes)})
 
-    return pd.DataFrame(rows).sort_values("avg_sharpe", ascending=False)
+    return pd.DataFrame(rows)
 
 
 def main():
@@ -48,6 +48,8 @@ def main():
     parser.add_argument("--symbols", default=None)
     parser.add_argument("--limit", type=int, default=1000)
     parser.add_argument("--top", type=int, default=10)
+    parser.add_argument("--rank-by", default="sharpe", choices=["sharpe", "pnl", "win_rate"],
+                        help="Metric to rank results by")
     args = parser.parse_args()
 
     from bot.symbols import load_symbols
@@ -77,9 +79,11 @@ def main():
         param_grid = {"period": [15, 20, 25], "std_dev": [1.5, 2.0, 2.5]}
         strategy_cls = BollingerStrategy
 
+    rank_col = {"sharpe": "avg_sharpe", "pnl": "avg_pnl", "win_rate": "avg_win_rate"}[args.rank_by]
     results = grid_search(strategy_cls, param_grid, symbols, n_candles=args.limit)
+    results = results.sort_values(rank_col, ascending=False)
 
-    print(f"\n=== Top {args.top} {args.strategy.upper()} Parameter Combinations ===\n")
+    print(f"\n=== Top {args.top} {args.strategy.upper()} — ranked by {args.rank_by.upper()} ===\n")
     top = results.head(args.top)
     param_cols = [c for c in top.columns if c not in ("avg_sharpe", "avg_pnl", "avg_win_rate", "symbols_traded")]
     header = f"{'Rank':>5}  " + "  ".join(f"{c:>12}" for c in param_cols) + \
@@ -92,7 +96,7 @@ def main():
 
     best = results.iloc[0]
     best_params = {c: best[c] for c in param_cols}
-    print(f"\nBest params: {best_params}  →  Sharpe {best.avg_sharpe:.2f}, PnL {best.avg_pnl:+.2%}")
+    print(f"\nBest params: {best_params}  →  Sharpe {best.avg_sharpe:.2f}, PnL {best.avg_pnl:+.2%}, Win rate {best.avg_win_rate:.1%}")
 
 
 if __name__ == "__main__":
