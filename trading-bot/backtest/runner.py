@@ -55,12 +55,14 @@ class Backtester:
 
     def run(self, df: pd.DataFrame) -> BacktestResult:
         result = BacktestResult()
+        # Pre-compute all indicators once — O(n) instead of O(n²)
         df = self.strategy.add_indicators(df.copy())
         position = None
 
         for i in range(1, len(df)):
-            window = df.iloc[: i + 1]
-            signal = self.strategy.generate_signal(window)
+            # Pass only the slice needed for signal logic (last 2 rows suffices for
+            # crossover strategies; strategies needing more warmup guard internally)
+            signal = self.strategy.generate_signal(df.iloc[: i + 1])
 
             price = df.iloc[i]["close"]
             result.equity_curve.append(self.capital)

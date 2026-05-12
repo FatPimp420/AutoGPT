@@ -13,7 +13,8 @@ class MACDStrategy(BaseStrategy):
         self.signal = signal
 
     def generate_signal(self, df: pd.DataFrame) -> str | None:
-        df = self.add_indicators(df.copy())
+        if "macd_hist" not in df.columns:
+            df = self.add_indicators(df.copy())
         if len(df) < 2 or df["macd_hist"].isna().iloc[-2:].any():
             return None
         prev_hist = df["macd_hist"].iloc[-2]

@@ -12,7 +12,8 @@ class BollingerStrategy(BaseStrategy):
         self.std_dev = std_dev
 
     def generate_signal(self, df: pd.DataFrame) -> str | None:
-        df = self.add_indicators(df.copy())
+        if "bb_lower" not in df.columns:
+            df = self.add_indicators(df.copy())
         if df["bb_lower"].isna().iloc[-1]:
             return None
         close = df["close"].iloc[-1]

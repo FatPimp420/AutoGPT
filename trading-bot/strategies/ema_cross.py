@@ -12,7 +12,8 @@ class EMACrossStrategy(BaseStrategy):
         self.slow = slow
 
     def generate_signal(self, df: pd.DataFrame) -> str | None:
-        df = self.add_indicators(df.copy())
+        if "ema_fast" not in df.columns:
+            df = self.add_indicators(df.copy())
         if len(df) < self.slow + 1:
             return None
 
