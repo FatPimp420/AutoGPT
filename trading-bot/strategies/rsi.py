@@ -13,6 +13,8 @@ class RSIStrategy(BaseStrategy):
         self.overbought = overbought
 
     def generate_signal(self, df: pd.DataFrame) -> str | None:
+        if len(df) < self.period * 2:
+            return None
         df = self.add_indicators(df.copy())
         if df["rsi"].isna().all():
             return None
