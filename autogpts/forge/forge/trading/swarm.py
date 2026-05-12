@@ -23,9 +23,9 @@ SYMBOLS_DEFAULT = [
 
 
 def _default_blender():
-    from sentiment.mock import MockSentimentProvider
+    from sentiment.providers.factory import get_provider
     from sentiment.blender import SignalBlender
-    return SignalBlender(provider=MockSentimentProvider())
+    return SignalBlender(provider=get_provider())
 
 
 @dataclass
