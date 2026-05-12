@@ -1,0 +1,74 @@
+{
+  "tasks": {
+    "task-1778559407075-aiag1j": {
+      "taskId": "task-1778559407075-aiag1j",
+      "type": "research",
+      "description": "Read Obsidian vault trading bot notes via mcp-obsidian MCP server. Extract: strategy logic, exchange targets, timeframes, indicators, risk rules, and any existing code snippets. Store findings in ruflo memory namespace trading-bot.",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [],
+      "tags": [
+        "trading-bot",
+        "obsidian",
+        "research"
+      ],
+      "createdAt": "2026-05-12T04:16:47.075Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1778559407121-wrrad4": {
+      "taskId": "task-1778559407121-wrrad4",
+      "type": "feature",
+      "description": "Implement core trading bot engine: exchange connector (ccxt), OHLCV data fetcher, pandas-based strategy base class, order execution layer, and position tracker.",
+      "priority": "high",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [],
+      "tags": [
+        "trading-bot",
+        "python",
+        "ccxt",
+        "pandas"
+      ],
+      "createdAt": "2026-05-12T04:16:47.121Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1778559407163-n6p33t": {
+      "taskId": "task-1778559407163-n6p33t",
+      "type": "feature",
+      "description": "Build backtesting harness: load historical OHLCV data, replay through strategy, track PnL, drawdown, Sharpe ratio, win rate. Output results as pandas DataFrame and markdown report.",
+      "priority": "normal",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [],
+      "tags": [
+        "trading-bot",
+        "backtest",
+        "pandas"
+      ],
+      "createdAt": "2026-05-12T04:16:47.163Z",
+      "startedAt": null,
+      "completedAt": null
+    },
+    "task-1778559407220-8ixwyd": {
+      "taskId": "task-1778559407220-8ixwyd",
+      "type": "feature",
+      "description": "Risk management module: per-trade position sizing, max drawdown circuit breaker, daily loss limit, portfolio exposure caps. Pluggable into the strategy base class.",
+      "priority": "normal",
+      "status": "pending",
+      "progress": 0,
+      "assignedTo": [],
+      "tags": [
+        "trading-bot",
+        "risk",
+        "python"
+      ],
+      "createdAt": "2026-05-12T04:16:47.220Z",
+      "startedAt": null,
+      "completedAt": null
+    }
+  },
+  "version": "3.0.0"
+}
