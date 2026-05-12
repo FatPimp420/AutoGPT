@@ -1,0 +1,8 @@
+{
+  "id": "swarm-1778558229574-pb2kic",
+  "topology": "hierarchical-mesh",
+  "maxAgents": 15,
+  "strategy": "development",
+  "initializedAt": "2026-05-12T03:57:09.574Z",
+  "status": "ready"
+}

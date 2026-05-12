@@ -1,0 +1,11 @@
+{
+  "timestamp": "2026-05-12T03:56:53.672Z",
+  "projectRoot": "/home/user/AutoGPT",
+  "structure": {
+    "hasPackageJson": false,
+    "hasTsConfig": false,
+    "hasClaudeConfig": true,
+    "hasClaudeFlow": true
+  },
+  "scannedAt": 1778558213672
+}
