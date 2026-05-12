@@ -28,6 +28,12 @@ bs4 = "^0.0.1"
 agbenchmark = {git = "https://github.com/Significant-Gravitas/AutoGPT.git", subdirectory = "benchmark", optional = true}
 webdriver-manager = "^4.0.1"
 google-cloud-storage = "^2.13.0"
+# trading-bot dependencies
+pandas = "^2.0.0"
+numpy = "^1.24.0"
+loguru = "^0.7.0"
+ccxt = "^4.0.0"
+click = "^8.1.0"
 
 [tool.poetry.extras]
 benchmark = ["agbenchmark"]
