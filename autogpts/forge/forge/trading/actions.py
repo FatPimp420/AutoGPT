@@ -26,26 +26,9 @@ from backtest.synthetic import generate_ohlcv  # noqa: E402
 from risk.manager import RiskManager  # noqa: E402
 
 
-_STRATEGY_MAP = {}
-
-
 def _load_strategy(name: str):
-    if name not in _STRATEGY_MAP:
-        if name == "ema_cross":
-            from strategies.ema_cross import EMACrossStrategy
-            _STRATEGY_MAP[name] = EMACrossStrategy
-        elif name == "rsi":
-            from strategies.rsi import RSIStrategy
-            _STRATEGY_MAP[name] = RSIStrategy
-        elif name == "macd":
-            from strategies.macd import MACDStrategy
-            _STRATEGY_MAP[name] = MACDStrategy
-        elif name == "bollinger":
-            from strategies.bollinger import BollingerStrategy
-            _STRATEGY_MAP[name] = BollingerStrategy
-        else:
-            raise ValueError(f"Unknown strategy: {name}")
-    return _STRATEGY_MAP[name]()
+    from strategies.factory import get_strategy
+    return get_strategy(name)
 
 
 def run_backtest(

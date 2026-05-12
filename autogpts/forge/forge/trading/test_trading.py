@@ -131,10 +131,10 @@ async def test_swarm_signal_pipeline_runs_all_symbols():
     result = await swarm.run_signal_pipeline(
         task_id="swarm-test-1", symbols=symbols, strategy="rsi", lookback_days=30
     )
-    # 5 agent roles × 3 symbols = 15 pipeline results
-    assert len(result.pipeline_results) == 15
+    # 6 agent roles × 3 symbols = 18 pipeline results
+    assert len(result.pipeline_results) == 18
     roles = {r.role for r in result.pipeline_results}
-    assert roles == {"data_fetcher", "signal_generator", "sentiment_agent", "risk_checker", "executor"}
+    assert roles == {"data_fetcher", "signal_generator", "sentiment_agent", "ml_veto_agent", "risk_checker", "executor"}
 
 
 @pytest.mark.asyncio
@@ -159,11 +159,12 @@ async def test_swarm_summary_counts_correct():
     )
     summary = result.summary()
     assert summary["task_id"] == "swarm-test-3"
-    assert summary["agents_ran"] == 5
+    assert summary["agents_ran"] == 6
     # signals_generated + signals_blocked must equal number of symbols
     assert summary["signals_generated"] + summary["signals_blocked_by_risk"] == 1
     assert "signals_blocked_by_sentiment" in summary
     assert "signals_boosted_by_sentiment" in summary
+    assert "signals_vetoed_by_ml" in summary
 
 
 # ── TradingAgent.execute_step tests ─────────────────────────────────────────
