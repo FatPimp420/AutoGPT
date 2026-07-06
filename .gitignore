@@ -177,3 +177,6 @@ arena/TestAgent.json
 # evo.ninja
 autogpts/evo.ninja/*
 !autogpts/evo.ninja/setup
+
+# Cloned external repo for research only, not part of this project
+/tribes-research/
