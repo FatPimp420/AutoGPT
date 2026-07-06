@@ -1,0 +1,482 @@
+<title>Tribes Save Viewer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #14181c;
+    --panel: #1d2329;
+    --border: #2c343c;
+    --text: #e6e9ec;
+    --muted: #8a94a0;
+    --accent: #4da3ff;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg); color: var(--text);
+    font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overscroll-behavior: none;
+  }
+  #app { display: flex; flex-direction: column; height: 100%; }
+
+  #topbar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    padding: 8px 10px; background: var(--panel); border-bottom: 1px solid var(--border);
+  }
+  #topbar label.filebtn {
+    background: var(--accent); color: #06131f; padding: 8px 12px; border-radius: 6px;
+    font-weight: 600; cursor: pointer; white-space: nowrap;
+  }
+  #topbar input[type=file] { display: none; }
+  #status { color: var(--muted); font-size: 12px; flex: 1 1 auto; min-width: 120px; }
+
+  #boardWrap {
+    position: relative; flex: 1 1 auto; overflow: hidden; touch-action: none;
+    background: #0b0d10;
+  }
+  #boardCanvas { position: absolute; top: 0; left: 0; }
+
+  #tileInfo {
+    position: absolute; left: 8px; top: 8px; max-width: 260px;
+    background: rgba(20, 24, 28, 0.92); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px; font-size: 12px; display: none;
+  }
+  #tileInfo.visible { display: block; }
+  #tileInfo b { color: var(--accent); }
+  #tileInfo .row { display: flex; justify-content: space-between; gap: 10px; }
+
+  #legend {
+    position: absolute; right: 8px; top: 8px; background: rgba(20,24,28,0.92);
+    border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px;
+    font-size: 11px; display: grid; grid-template-columns: auto auto; gap: 2px 8px;
+  }
+  #legend .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+
+  #controls {
+    background: var(--panel); border-top: 1px solid var(--border);
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  #scrubRow { display: flex; align-items: center; gap: 10px; }
+  #scrub { flex: 1 1 auto; accent-color: var(--accent); height: 28px; }
+  #tickLabel { min-width: 92px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  #buttonRow { display: flex; align-items: center; gap: 8px; }
+  #buttonRow button {
+    flex: 0 0 auto; background: #262e36; color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 14px; font-size: 16px; cursor: pointer;
+  }
+  #buttonRow button:active { background: #323c46; }
+  #buttonRow button.primary { background: var(--accent); color: #06131f; border-color: var(--accent); font-weight: 700; }
+  #speed { margin-left: auto; background: #262e36; color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 8px; }
+
+  #empty {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: var(--muted); text-align: center; padding: 20px; pointer-events: none;
+  }
+</style>
+
+<div id="app">
+  <div id="topbar">
+    <label class="filebtn">
+      Load save(s)
+      <input id="fileInput" type="file" accept=".json,application/json" multiple>
+    </label>
+    <span id="status">No save loaded. Select one or more per-turn game.json files (e.g. save/&lt;seed&gt;/&lt;tick&gt;_&lt;tribeId&gt;/game.json).</span>
+  </div>
+
+  <div id="boardWrap">
+    <canvas id="boardCanvas"></canvas>
+    <div id="tileInfo"></div>
+    <div id="legend"></div>
+    <div id="empty">Load one or more Tribes game.json turn files to render the board.</div>
+  </div>
+
+  <div id="controls">
+    <div id="scrubRow">
+      <input id="scrub" type="range" min="0" max="0" value="0" step="1" disabled>
+      <div id="tickLabel">-- / --</div>
+    </div>
+    <div id="buttonRow">
+      <button id="btnFirst" disabled>|&lt;</button>
+      <button id="btnPrev" disabled>&lt;</button>
+      <button id="btnPlay" class="primary" disabled>&#9654; Play</button>
+      <button id="btnNext" disabled>&gt;</button>
+      <button id="btnLast" disabled>&gt;|</button>
+      <select id="speed" disabled>
+        <option value="1200">0.8x</option>
+        <option value="700" selected>1x</option>
+        <option value="350">2x</option>
+        <option value="150">4x</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var TERRAIN = { 0: ["Plain", "#4f7a3c"], 1: ["Shallow Water", "#3b7fa6"], 2: ["Deep Water", "#1d4e70"],
+    3: ["Mountain", "#8a8378"], 4: ["Village", "#c9a86a"], 5: ["City", "#b6772f"],
+    6: ["Forest", "#2f5c33"], 7: ["Fog", "#0e1114"] };
+  var RESOURCE = { 0: "Fish", 1: "Fruit", 2: "Animal", 3: "Whales", 5: "Ore", 6: "Crops", 7: "Ruins" };
+  var UNIT = { 0: "Warrior", 1: "Rider", 2: "Defender", 3: "Swordsman", 4: "Archer", 5: "Catapult",
+    6: "Knight", 7: "Mind Bender", 8: "Boat", 9: "Ship", 10: "Battleship", 11: "Superunit" };
+  var UNIT_ABBR = { 0: "W", 1: "R", 2: "D", 3: "S", 4: "A", 5: "C", 6: "K", 7: "M", 8: "B", 9: "Sh", 10: "Bs", 11: "Su" };
+  var BUILDING = { 0: "Port", 1: "Mine", 2: "Forge", 3: "Farm", 4: "Windmill", 5: "Customs House",
+    6: "Lumber Hut", 7: "Sawmill", 8: "Temple", 9: "Water Temple", 10: "Forest Temple",
+    11: "Mountain Temple", 12: "Altar of Peace", 13: "Emperor's Tomb", 14: "Eye of God",
+    15: "Gate of Power", 16: "Grand Bazar", 17: "Park of Fortune", 18: "Tower of Wisdom" };
+  var TRIBE_PALETTE = ["#e2534d", "#4da3ff", "#e0c341", "#59c168", "#c266e0", "#e08a3c", "#3ddede", "#e0568f"];
+
+  var frames = [];
+  var tribeColor = {};
+  var playing = false;
+  var timer = null;
+  var view = { zoom: 1, panX: 0, panY: 0, tileW: 64, tileH: 34 };
+  var selectedTile = null;
+
+  var els = {
+    fileInput: document.getElementById("fileInput"),
+    status: document.getElementById("status"),
+    canvas: document.getElementById("boardCanvas"),
+    boardWrap: document.getElementById("boardWrap"),
+    tileInfo: document.getElementById("tileInfo"),
+    legend: document.getElementById("legend"),
+    empty: document.getElementById("empty"),
+    scrub: document.getElementById("scrub"),
+    tickLabel: document.getElementById("tickLabel"),
+    btnFirst: document.getElementById("btnFirst"),
+    btnPrev: document.getElementById("btnPrev"),
+    btnPlay: document.getElementById("btnPlay"),
+    btnNext: document.getElementById("btnNext"),
+    btnLast: document.getElementById("btnLast"),
+    speed: document.getElementById("speed")
+  };
+  var ctx = els.canvas.getContext("2d");
+
+  function parseFrame(json) {
+    var b = json.board;
+    var size = b.terrain.length;
+    return {
+      tick: json.tick, activeTribeID: json.activeTribeID, seed: json.seed,
+      gameIsOver: json.gameIsOver, gameMode: json.gameMode, size: size,
+      terrain: b.terrain, resource: b.resource, unitID: b.unitID, cityID: b.cityID,
+      building: b.building, network: b.network,
+      units: json.unit || {}, cities: json.city || {}, tribes: json.tribes || {}
+    };
+  }
+
+  function assignTribeColors(frame) {
+    var ids = Object.keys(frame.tribes).map(Number).sort(function (a, b) { return a - b; });
+    ids.forEach(function (id, i) {
+      if (!(id in tribeColor)) tribeColor[id] = TRIBE_PALETTE[i % TRIBE_PALETTE.length];
+    });
+  }
+
+  function loadFiles(fileList) {
+    var files = Array.prototype.slice.call(fileList);
+    var readers = files.map(function (f) {
+      return f.text().then(function (text) { return JSON.parse(text); });
+    });
+    Promise.all(readers).then(function (jsons) {
+      var parsed = jsons.map(parseFrame);
+      parsed.sort(function (a, b) { return a.tick - b.tick || a.activeTribeID - b.activeTribeID; });
+      frames = parsed;
+      frames.forEach(assignTribeColors);
+      onFramesLoaded();
+    }).catch(function (err) {
+      els.status.textContent = "Failed to parse save file(s): " + err.message;
+    });
+  }
+
+  function onFramesLoaded() {
+    els.empty.style.display = frames.length ? "none" : "flex";
+    els.scrub.max = Math.max(0, frames.length - 1);
+    els.scrub.value = 0;
+    [els.scrub, els.btnFirst, els.btnPrev, els.btnPlay, els.btnNext, els.btnLast, els.speed]
+      .forEach(function (el) { el.disabled = frames.length === 0; });
+    els.status.textContent = frames.length + " turn frame(s) loaded.";
+    buildLegend();
+    setFrame(0);
+    fitToScreen();
+  }
+
+  function buildLegend() {
+    els.legend.innerHTML = "";
+    Object.keys(TERRAIN).forEach(function (k) {
+      var sw = document.createElement("span");
+      sw.className = "sw";
+      sw.style.background = TERRAIN[k][1];
+      var label = document.createElement("span");
+      label.textContent = TERRAIN[k][0];
+      var wrap = document.createElement("div");
+      wrap.appendChild(sw);
+      wrap.appendChild(label);
+      els.legend.appendChild(wrap);
+    });
+  }
+
+  function currentFrame() {
+    return frames[Number(els.scrub.value)] || null;
+  }
+
+  function setFrame(i) {
+    i = Math.max(0, Math.min(frames.length - 1, i));
+    els.scrub.value = i;
+    var f = frames[i];
+    if (f) {
+      els.tickLabel.textContent = "Tick " + f.tick + " (" + (i + 1) + "/" + frames.length + ")";
+    }
+    selectedTile = null;
+    els.tileInfo.classList.remove("visible");
+    render();
+  }
+
+  function tileCenter(col, row) {
+    var tw = view.tileW * view.zoom, th = view.tileH * view.zoom;
+    var x = (col - row) * (tw / 2) + view.panX + els.canvas.width / 2;
+    var y = (col + row) * (th / 2) + view.panY;
+    return { x: x, y: y };
+  }
+
+  function screenToTile(px, py, frame) {
+    var tw = view.tileW * view.zoom, th = view.tileH * view.zoom;
+    var x = px - view.panX - els.canvas.width / 2;
+    var y = py - view.panY;
+    var col = (x / (tw / 2) + y / (th / 2)) / 2;
+    var row = (y / (th / 2) - x / (tw / 2)) / 2;
+    col = Math.round(col); row = Math.round(row);
+    if (col < 0 || row < 0 || col >= frame.size || row >= frame.size) return null;
+    return { col: col, row: row };
+  }
+
+  function resizeCanvas() {
+    var rect = els.boardWrap.getBoundingClientRect();
+    els.canvas.width = rect.width;
+    els.canvas.height = rect.height;
+    render();
+  }
+
+  function fitToScreen() {
+    var f = currentFrame();
+    if (!f) return;
+    var rect = els.boardWrap.getBoundingClientRect();
+    var boardPixelW = f.size * view.tileW;
+    var boardPixelH = f.size * view.tileH;
+    view.zoom = Math.max(0.25, Math.min(rect.width / boardPixelW, rect.height / boardPixelH) * 0.92);
+    var th = view.tileH * view.zoom;
+    view.panX = 0;
+    view.panY = rect.height / 2 - (f.size - 1) * (th / 2);
+    render();
+  }
+
+  function drawDiamond(x, y, tw, th, fill) {
+    ctx.beginPath();
+    ctx.moveTo(x, y - th / 2);
+    ctx.lineTo(x + tw / 2, y);
+    ctx.lineTo(x, y + th / 2);
+    ctx.lineTo(x - tw / 2, y);
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.strokeStyle = "rgba(0,0,0,0.25)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  function render() {
+    var f = currentFrame();
+    var rect = els.boardWrap.getBoundingClientRect();
+    ctx.clearRect(0, 0, rect.width, rect.height);
+    if (!f) return;
+    var tw = view.tileW * view.zoom, th = view.tileH * view.zoom;
+
+    for (var col = 0; col < f.size; col++) {
+      for (var row = 0; row < f.size; row++) {
+        var c = tileCenter(col, row);
+        if (c.x < -tw || c.x > rect.width + tw || c.y < -th || c.y > rect.height + th) continue;
+
+        var terrKey = f.terrain[col][row];
+        var terrDef = TERRAIN[terrKey] || ["?", "#333"];
+        var cityId = f.cityID[col][row];
+        var fill = terrDef[1];
+        if (cityId !== -1 && f.cities[cityId]) {
+          var owner = f.cities[cityId].tribeID;
+          fill = tribeColor[owner] || fill;
+        }
+        drawDiamond(c.x, c.y, tw, th, fill);
+
+        var resKey = f.resource[col][row];
+        if (resKey !== -1 && RESOURCE[resKey]) {
+          ctx.fillStyle = "rgba(255,255,255,0.85)";
+          ctx.beginPath();
+          ctx.arc(c.x, c.y - th * 0.12, Math.max(2, tw * 0.06), 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        var bldKey = f.building[col][row];
+        if (bldKey !== -1 && BUILDING[bldKey]) {
+          ctx.fillStyle = "rgba(0,0,0,0.55)";
+          ctx.fillRect(c.x - tw * 0.08, c.y - th * 0.32, tw * 0.16, th * 0.16);
+        }
+
+        if (cityId !== -1 && f.cities[cityId]) {
+          var city = f.cities[cityId];
+          ctx.fillStyle = "#fff";
+          ctx.font = "bold " + Math.max(9, th * 0.32) + "px sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(String(city.level != null ? city.level : ""), c.x, c.y);
+        }
+
+        var unitId = f.unitID[col][row];
+        if (unitId !== -1 && f.units[unitId]) {
+          var u = f.units[unitId];
+          var uColor = tribeColor[u.tribeId] || "#ccc";
+          ctx.beginPath();
+          ctx.arc(c.x, c.y + th * 0.05, Math.max(6, tw * 0.16), 0, Math.PI * 2);
+          ctx.fillStyle = uColor;
+          ctx.fill();
+          ctx.strokeStyle = "#0b0d10";
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+          ctx.fillStyle = "#0b0d10";
+          ctx.font = "bold " + Math.max(8, tw * 0.13) + "px sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(UNIT_ABBR[u.type] || "?", c.x, c.y + th * 0.05);
+        }
+
+        if (selectedTile && selectedTile.col === col && selectedTile.row === row) {
+          ctx.strokeStyle = "#fff";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(c.x, c.y - th / 2);
+          ctx.lineTo(c.x + tw / 2, c.y);
+          ctx.lineTo(c.x, c.y + th / 2);
+          ctx.lineTo(c.x - tw / 2, c.y);
+          ctx.closePath();
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  function showTileInfo(col, row, frame) {
+    var terrKey = frame.terrain[col][row];
+    var resKey = frame.resource[col][row];
+    var bldKey = frame.building[col][row];
+    var cityId = frame.cityID[col][row];
+    var unitId = frame.unitID[col][row];
+    var lines = [];
+    lines.push("<div class='row'><span>Tile</span><b>(" + col + ", " + row + ")</b></div>");
+    lines.push("<div class='row'><span>Terrain</span><b>" + ((TERRAIN[terrKey] || ["Unknown"])[0]) + "</b></div>");
+    if (resKey !== -1) lines.push("<div class='row'><span>Resource</span><b>" + (RESOURCE[resKey] || resKey) + "</b></div>");
+    if (bldKey !== -1) lines.push("<div class='row'><span>Building</span><b>" + (BUILDING[bldKey] || bldKey) + "</b></div>");
+    if (cityId !== -1 && frame.cities[cityId]) {
+      var city = frame.cities[cityId];
+      lines.push("<div class='row'><span>City</span><b>lvl " + city.level + ", pop " + city.population + "</b></div>");
+      lines.push("<div class='row'><span>Tribe</span><b>#" + city.tribeID + "</b></div>");
+    }
+    if (unitId !== -1 && frame.units[unitId]) {
+      var u = frame.units[unitId];
+      lines.push("<div class='row'><span>Unit</span><b>" + (UNIT[u.type] || u.type) + "</b></div>");
+      lines.push("<div class='row'><span>HP</span><b>" + u.currentHP + "</b></div>");
+      lines.push("<div class='row'><span>Owner</span><b>#" + u.tribeId + "</b></div>");
+    }
+    els.tileInfo.innerHTML = lines.join("");
+    els.tileInfo.classList.add("visible");
+  }
+
+  function stepFrame(delta) { setFrame(Number(els.scrub.value) + delta); }
+
+  function play() {
+    if (playing) return;
+    playing = true;
+    els.btnPlay.innerHTML = "&#10074;&#10074; Pause";
+    var tick = function () {
+      var i = Number(els.scrub.value);
+      if (i >= frames.length - 1) { pause(); return; }
+      setFrame(i + 1);
+      timer = setTimeout(tick, Number(els.speed.value));
+    };
+    timer = setTimeout(tick, Number(els.speed.value));
+  }
+  function pause() {
+    playing = false;
+    els.btnPlay.innerHTML = "&#9654; Play";
+    clearTimeout(timer);
+  }
+
+  els.fileInput.addEventListener("change", function (e) { loadFiles(e.target.files); });
+  els.scrub.addEventListener("input", function () { pause(); setFrame(Number(els.scrub.value)); });
+  els.btnFirst.addEventListener("click", function () { pause(); setFrame(0); });
+  els.btnLast.addEventListener("click", function () { pause(); setFrame(frames.length - 1); });
+  els.btnPrev.addEventListener("click", function () { pause(); stepFrame(-1); });
+  els.btnNext.addEventListener("click", function () { pause(); stepFrame(1); });
+  els.btnPlay.addEventListener("click", function () { playing ? pause() : play(); });
+  window.addEventListener("resize", resizeCanvas);
+
+  var drag = null;
+  els.boardWrap.addEventListener("pointerdown", function (e) {
+    drag = { x: e.clientX, y: e.clientY, panX: view.panX, panY: view.panY, moved: false };
+    els.boardWrap.setPointerCapture(e.pointerId);
+  });
+  els.boardWrap.addEventListener("pointermove", function (e) {
+    if (!drag) return;
+    var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) drag.moved = true;
+    view.panX = drag.panX + dx;
+    view.panY = drag.panY + dy;
+    render();
+  });
+  els.boardWrap.addEventListener("pointerup", function (e) {
+    if (drag && !drag.moved) {
+      var f = currentFrame();
+      if (f) {
+        var rect = els.boardWrap.getBoundingClientRect();
+        var tile = screenToTile(e.clientX - rect.left, e.clientY - rect.top, f);
+        if (tile) {
+          selectedTile = tile;
+          showTileInfo(tile.col, tile.row, f);
+          render();
+        } else {
+          selectedTile = null;
+          els.tileInfo.classList.remove("visible");
+          render();
+        }
+      }
+    }
+    drag = null;
+  });
+  els.boardWrap.addEventListener("wheel", function (e) {
+    e.preventDefault();
+    var factor = e.deltaY < 0 ? 1.1 : 0.9;
+    view.zoom = Math.max(0.15, Math.min(4, view.zoom * factor));
+    render();
+  }, { passive: false });
+
+  var pinch = null;
+  els.boardWrap.addEventListener("touchstart", function (e) {
+    if (e.touches.length === 2) {
+      pinch = { dist: touchDist(e.touches), zoom: view.zoom };
+    }
+  }, { passive: true });
+  els.boardWrap.addEventListener("touchmove", function (e) {
+    if (e.touches.length === 2 && pinch) {
+      var d = touchDist(e.touches);
+      view.zoom = Math.max(0.15, Math.min(4, pinch.zoom * (d / pinch.dist)));
+      render();
+    }
+  }, { passive: true });
+  function touchDist(touches) {
+    var dx = touches[0].clientX - touches[1].clientX;
+    var dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  resizeCanvas();
+})();
+</script>
