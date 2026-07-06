@@ -1,0 +1,5 @@
+Tribes/
+.venv/
+checkpoints/
+java/out/
+__pycache__/
