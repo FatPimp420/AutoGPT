@@ -1,0 +1,408 @@
+<title>Tribes Training</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#f3f0e8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1a1d22" media="(prefers-color-scheme: dark)">
+<style>
+:root {
+  --bg: #f3f0e8; --surface: #fbf9f4; --ink: #26241f; --muted: #7a7466;
+  --line: #ddd6c6; --accent: #9a6b1f; --accent-ink: #fff; --series: #2a78d6;
+  --good: #3d7a3d; --warn: #a05a1f;
+  --p0: #d64545; --p1: #4a7bd4;
+  --serif: Palatino, "Iowan Old Style", "Book Antiqua", Georgia, serif;
+  --ui: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #1a1d22; --surface: #232830; --ink: #e8e4da; --muted: #98917f;
+    --line: #343b45; --accent: #d9a441; --accent-ink: #1a1d22; --series: #3987e5;
+    --good: #6fbf6f; --warn: #d9a441; }
+}
+:root[data-theme="dark"] { --bg: #1a1d22; --surface: #232830; --ink: #e8e4da;
+  --muted: #98917f; --line: #343b45; --accent: #d9a441; --accent-ink: #1a1d22;
+  --series: #3987e5; --good: #6fbf6f; --warn: #d9a441; }
+:root[data-theme="light"] { --bg: #f3f0e8; --surface: #fbf9f4; --ink: #26241f;
+  --muted: #7a7466; --line: #ddd6c6; --accent: #9a6b1f; --accent-ink: #fff;
+  --series: #2a78d6; --good: #3d7a3d; --warn: #a05a1f; }
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--ui);
+  padding: max(.8rem, env(safe-area-inset-top)) .8rem
+           max(1.5rem, env(safe-area-inset-bottom)); max-width: 660px;
+  margin-inline: auto; }
+h1 { font-family: var(--serif); font-size: 1.3rem; font-weight: 600; margin: .2rem 0; }
+h2 { font-size: .72rem; text-transform: uppercase; letter-spacing: .09em;
+     color: var(--muted); font-weight: 600; margin: 1.4rem 0 .5rem; }
+.topline { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+.pill { font-size: .74rem; font-weight: 700; padding: .22rem .65rem;
+  border-radius: 999px; display: inline-flex; align-items: center; gap: .35rem; }
+.pill::before { content: ""; width: .5rem; height: .5rem; border-radius: 50%;
+  background: currentColor; }
+.pill.training { color: var(--good); background: color-mix(in srgb, var(--good) 12%, transparent); }
+.pill.paused, .pill.starting, .pill.stale { color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 12%, transparent); }
+.updated { font-size: .72rem; color: var(--muted); margin-left: auto; }
+.note { color: var(--muted); font-size: .82rem; margin: .1rem 0 0; }
+
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem; margin-top: .9rem; }
+@media (max-width: 480px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  padding: .5rem .6rem; }
+.tile .v { font-family: var(--mono); font-variant-numeric: tabular-nums;
+  font-size: 1.15rem; font-weight: 600; }
+.tile .k { font-size: .64rem; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--muted); }
+
+.charts { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+@media (max-width: 480px) { .charts { grid-template-columns: 1fr; } }
+.chart { background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  padding: .55rem .6rem .3rem; position: relative; }
+.chart .t { font-size: .72rem; font-weight: 600; margin-bottom: .1rem; }
+.chart .last { font-family: var(--mono); font-size: .72rem; color: var(--muted);
+  position: absolute; top: .55rem; right: .65rem; font-variant-numeric: tabular-nums; }
+.chart canvas { width: 100%; height: 88px; display: block; touch-action: pan-y; }
+.tooltip { position: absolute; pointer-events: none; background: var(--ink);
+  color: var(--bg); font: .68rem var(--mono); padding: .2rem .4rem; border-radius: 4px;
+  transform: translate(-50%, -130%); white-space: nowrap; display: none; z-index: 5; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  padding: .7rem .85rem; }
+.rules { display: grid; grid-template-columns: 1fr 1fr; gap: .3rem .8rem;
+  font-size: .82rem; }
+.rules dt { color: var(--muted); }
+.rules dd { margin: 0; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.rules div { display: flex; justify-content: space-between; gap: .5rem;
+  border-bottom: 1px dashed var(--line); padding: .18rem 0; }
+.hint { font-size: .78rem; color: var(--muted); margin-top: .6rem; line-height: 1.45; }
+.hint code { font-family: var(--mono); background: var(--bg); padding: .05rem .3rem;
+  border-radius: 4px; }
+.events { font-size: .76rem; line-height: 1.6; }
+.events time { color: var(--muted); font-family: var(--mono); margin-right: .4rem; }
+
+#boardwrap { display: flex; justify-content: center; margin-top: .5rem; }
+canvas#board { max-width: 100%; border-radius: 8px; border: 1px solid var(--line); }
+.replaymeta { font-size: .76rem; color: var(--muted); margin: .4rem 0; }
+.transport { display: flex; align-items: center; gap: .5rem; margin-top: .5rem; }
+.transport button { font: inherit; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 6px; padding: .3rem .6rem; cursor: pointer; }
+#play { background: var(--accent); color: var(--accent-ink); border-color: var(--accent);
+  font-weight: 600; min-width: 4.4rem; }
+#slider { flex: 1; min-width: 80px; accent-color: var(--accent); }
+#action-now { font: .74rem var(--mono); margin-top: .4rem; min-height: 1.2em; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent);
+  outline-offset: 2px; }
+
+details { margin-top: 1rem; }
+summary { cursor: pointer; font-size: .78rem; color: var(--muted); }
+table { border-collapse: collapse; width: 100%; font: .68rem var(--mono);
+  font-variant-numeric: tabular-nums; margin-top: .5rem; }
+th, td { text-align: right; padding: .2rem .4rem; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; }
+.tablewrap { overflow-x: auto; }
+</style>
+
+<div class="topline">
+  <h1>Tribes Training</h1>
+  <span class="pill" id="statuspill"></span>
+  <span class="updated" id="updated"></span>
+</div>
+<p class="note" id="note"></p>
+
+<div class="tiles">
+  <div class="tile"><div class="v" id="t-iter">–</div><div class="k">iterations</div></div>
+  <div class="tile"><div class="v" id="t-games">–</div><div class="k">games played</div></div>
+  <div class="tile"><div class="v" id="t-steps">–</div><div class="k">env steps</div></div>
+  <div class="tile"><div class="v" id="t-speed">–</div><div class="k">sec / iter</div></div>
+</div>
+
+<h2>Learning curves</h2>
+<div class="charts" id="charts"></div>
+
+<h2>Current rules</h2>
+<div class="card">
+  <dl class="rules" id="rules"></dl>
+  <p class="hint">To change the rules, tell Claude in the training session —
+  e.g. <code>pause training</code>, <code>switch to SCORE mode</code>,
+  <code>set shaping to 0.005</code>, <code>longer games: 25 ticks</code>.
+  Changes apply from the next iteration; this page refreshes itself.</p>
+</div>
+
+<h2>Rule changes &amp; events</h2>
+<div class="card events" id="events"></div>
+
+<h2>Latest self-play game</h2>
+<div class="card" id="replaycard">
+  <div class="replaymeta" id="replaymeta"></div>
+  <div id="boardwrap"><canvas id="board" width="660" height="660"
+       aria-label="latest self-play game board"></canvas></div>
+  <div id="action-now"></div>
+  <div class="transport">
+    <button id="play">▶ play</button>
+    <input type="range" id="slider" min="0" value="0" step="1" aria-label="frame">
+    <span style="font:.7rem var(--mono);color:var(--muted)" id="counter"></span>
+  </div>
+</div>
+
+<details><summary>Recent iterations (table)</summary>
+  <div class="tablewrap"><table id="mtable"></table></div>
+</details>
+
+<script>
+const D = /*__DATA__*/null;
+
+// ---------- header ----------
+const st = D.status.state;
+const ageMin = () => (Date.now()/1000 - D.builtAt) / 60;
+const pill = document.getElementById("statuspill");
+function setPill() {
+  const stale = ageMin() > 45;
+  const label = stale ? "stale — reopen later" : st;
+  pill.textContent = label + (st === "training" ? " · iter " + D.status.iteration : "");
+  pill.className = "pill " + (stale ? "stale" : st);
+}
+setPill();
+document.getElementById("note").textContent =
+  (D.status.config && D.status.config.note) ? "“" + D.status.config.note + "”" : "";
+function fmtAge() {
+  const m = ageMin();
+  document.getElementById("updated").textContent =
+    m < 1.5 ? "updated just now" : `updated ${Math.round(m)} min ago`;
+}
+fmtAge(); setInterval(fmtAge, 30000);
+setInterval(() => location.reload(), 240000);           // pull latest redeploy
+document.addEventListener("visibilitychange", () => {   // refresh when reopened
+  if (!document.hidden && ageMin() > 4) location.reload();
+});
+
+// ---------- stat tiles ----------
+const fmt = n => n >= 1e6 ? (n/1e6).toFixed(1)+"M" : n >= 1e3 ? (n/1e3).toFixed(1)+"k" : n;
+document.getElementById("t-iter").textContent = fmt(D.totals.iterations);
+document.getElementById("t-games").textContent = fmt(D.totals.games);
+document.getElementById("t-steps").textContent = fmt(D.totals.steps);
+const lastIter = D.recent[D.recent.length-1];
+document.getElementById("t-speed").textContent = lastIter ? lastIter.iter_s : "–";
+
+// ---------- charts ----------
+const CHARTS = [
+  ["entropy", "Policy entropy", "falling = policy committing to choices"],
+  ["value_loss", "Value loss", ""],
+  ["mean_score", "Mean game score", ""],
+  ["mean_len", "Game length (actions)", ""],
+];
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+function drawChart(cv, xs, ys) {
+  const dpr = devicePixelRatio || 1;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  cv.width = w * dpr; cv.height = h * dpr;
+  const c = cv.getContext("2d"); c.scale(dpr, dpr);
+  c.clearRect(0, 0, w, h);
+  if (xs.length < 2) {
+    c.fillStyle = css("--muted"); c.font = "11px " + css("--ui");
+    c.fillText("waiting for data…", 8, h/2);
+    return null;
+  }
+  const pad = {l: 6, r: 34, t: 8, b: 6};
+  const ymin = Math.min(...ys), ymax = Math.max(...ys);
+  const yr = (ymax - ymin) || 1;
+  const X = i => pad.l + (w - pad.l - pad.r) * i / (xs.length - 1);
+  const Y = v => pad.t + (h - pad.t - pad.b) * (1 - (v - ymin) / yr);
+  c.strokeStyle = css("--line"); c.lineWidth = 1;                   // faint grid
+  for (const f of [0, .5, 1]) {
+    c.beginPath(); c.moveTo(pad.l, Y(ymin + f*yr)); c.lineTo(w - pad.r, Y(ymin + f*yr));
+    c.globalAlpha = .6; c.stroke(); c.globalAlpha = 1;
+  }
+  c.strokeStyle = css("--series"); c.lineWidth = 2;                 // series line
+  c.lineJoin = "round"; c.beginPath();
+  ys.forEach((v, i) => i ? c.lineTo(X(i), Y(v)) : c.moveTo(X(i), Y(v)));
+  c.stroke();
+  const lx = X(xs.length-1), ly = Y(ys[ys.length-1]);               // endpoint emphasis
+  c.fillStyle = css("--series");
+  c.beginPath(); c.arc(lx, ly, 3.5, 0, 7); c.fill();
+  c.strokeStyle = css("--surface"); c.lineWidth = 2; c.stroke();
+  return {X, Y};
+}
+
+const chartsEl = document.getElementById("charts");
+const redraws = [];
+for (const [key, title, sub] of CHARTS) {
+  const div = document.createElement("div");
+  div.className = "chart";
+  const last = D.series[key].length ? D.series[key][D.series[key].length-1] : "–";
+  div.innerHTML = `<div class="t">${title}</div><div class="last">${last}</div>
+    <canvas></canvas><div class="tooltip"></div>`;
+  chartsEl.appendChild(div);
+  const cv = div.querySelector("canvas"), tip = div.querySelector(".tooltip");
+  const xs = D.series.iter, ys = D.series[key];
+  const draw = () => drawChart(cv, xs, ys);
+  let geom = draw();
+  redraws.push(() => { geom = draw(); });
+  cv.addEventListener("pointermove", e => {                        // hover layer
+    if (!geom || !xs.length) return;
+    const r = cv.getBoundingClientRect();
+    const i = Math.max(0, Math.min(xs.length-1,
+      Math.round((e.clientX - r.left - 6) / (r.width - 40) * (xs.length-1))));
+    tip.style.display = "block";
+    tip.style.left = (e.clientX - r.left) + "px";
+    tip.style.top = geom.Y(ys[i]) + "px";
+    tip.textContent = `iter ${xs[i]} · ${ys[i]}`;
+  });
+  cv.addEventListener("pointerleave", () => tip.style.display = "none");
+}
+addEventListener("resize", () => redraws.forEach(f => f()));
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change",
+  () => redraws.forEach(f => f()));
+new MutationObserver(() => redraws.forEach(f => f()))
+  .observe(document.documentElement, {attributes: true, attributeFilter: ["data-theme"]});
+
+// ---------- rules ----------
+const cfg = D.status.config || {};
+const RULE_LABELS = {mode: "game mode", max_ticks: "turn limit",
+  rollout_steps: "rollout steps", shaping_coef: "score shaping",
+  win_reward: "win reward", lr: "learning rate", ent_coef: "entropy bonus"};
+document.getElementById("rules").innerHTML = Object.entries(RULE_LABELS)
+  .map(([k, label]) => `<div><dt>${label}</dt><dd>${cfg[k] ?? "–"}</dd></div>`).join("");
+
+// ---------- events ----------
+document.getElementById("events").innerHTML = (D.events || []).slice().reverse()
+  .map(e => {
+    const d = new Date(e.t * 1000);
+    const when = d.toLocaleString(undefined, {month:"short", day:"numeric",
+      hour:"2-digit", minute:"2-digit"});
+    const what = e.event === "rules changed"
+      ? "rules changed: " + Object.entries(e.changed)
+          .map(([k,v]) => `${k}→${JSON.stringify(v)}`).join(", ")
+      : e.event;
+    return `<div><time>${when}</time>${what}</div>`;
+  }).join("") || "<div>no events yet</div>";
+
+// ---------- table view ----------
+const cols = ["iter","games","decided","mean_len","mean_score","entropy","value_loss","iter_s"];
+document.getElementById("mtable").innerHTML =
+  "<tr>" + cols.map(c => `<th>${c}</th>`).join("") + "</tr>" +
+  D.recent.slice().reverse().map(m =>
+    "<tr>" + cols.map(c => `<td>${m[c]}</td>`).join("") + "</tr>").join("");
+
+// ---------- replay viewer ----------
+(function() {
+  const R = D.replay;
+  const card = document.getElementById("replaycard");
+  if (!R) { card.innerHTML = "<div class='replaymeta'>first replay records after iteration 25</div>"; return; }
+  const N = R.boardSize, F = R.frames, NAMES = R.names;
+  const TRIBE_LABEL = {XIN_XI: "Xin-Xi", IMPERIUS: "Imperius"};
+  const PC = ["#d64545", "#4a7bd4"];
+  const TC = {PLAIN:"#94b86a", SHALLOW_WATER:"#6fb9d6", DEEP_WATER:"#2f6f96",
+    MOUNTAIN:"#a8adb5", VILLAGE:"#c8a86b", CITY:"#b3a28a", FOREST:"#4d7a41", FOG:"#555"};
+  const RC = {FISH:"#3f8fbf", FRUIT:"#c8503c", ANIMAL:"#8a5a2b", WHALES:"#274e63",
+    ORE:"#6d6a75", CROPS:"#d9b64a", RUINS:"#7a5f8a"};
+  const UG = {WARRIOR:"W", RIDER:"R", DEFENDER:"D", SWORDMAN:"S", ARCHER:"A",
+    CATAPULT:"C", KNIGHT:"K", MIND_BENDER:"M", BOAT:"b", SHIP:"s", BATTLESHIP:"B", SUPERUNIT:"G"};
+  const w = (R.result.win || []).indexOf(1);
+  document.getElementById("replaymeta").textContent =
+    `${w >= 0 ? (TRIBE_LABEL[R.tribes[w]] || R.tribes[w]) + " wins" : "draw"} · ` +
+    `${R.result.scores.join("–")} · ${R.result.ticks} ticks · ${F.length-1} actions`;
+
+  const cv = document.getElementById("board"), cx = cv.getContext("2d");
+  const ts = cv.width / N;
+  let frame = 0, playing = false, timer = null;
+
+  function tile(x, y, b) {
+    const px = y*ts, py = x*ts;
+    const terr = NAMES.terrain[b.terrain[x][y]] || "FOG";
+    cx.fillStyle = TC[terr] || "#888"; cx.fillRect(px, py, ts-1, ts-1);
+    const owner = b.cityOwner[x][y];
+    if (owner >= 0) { cx.fillStyle = PC[owner]+"2e"; cx.fillRect(px, py, ts-1, ts-1); }
+    if (terr === "FOREST") {
+      cx.fillStyle = "#2e5426";
+      for (const [dx,dy] of [[.3,.62],[.62,.45],[.45,.8]]) {
+        cx.beginPath(); cx.moveTo(px+dx*ts, py+dy*ts-ts*.16);
+        cx.lineTo(px+dx*ts-ts*.09, py+dy*ts); cx.lineTo(px+dx*ts+ts*.09, py+dy*ts); cx.fill();
+      }
+    } else if (terr === "MOUNTAIN") {
+      cx.strokeStyle = "#5d626b"; cx.lineWidth = 2; cx.beginPath();
+      cx.moveTo(px+ts*.25, py+ts*.72); cx.lineTo(px+ts*.5, py+ts*.3);
+      cx.lineTo(px+ts*.75, py+ts*.72); cx.stroke();
+    } else if (terr === "VILLAGE") {
+      cx.fillStyle = "#7a5f39"; cx.fillRect(px+ts*.36, py+ts*.42, ts*.28, ts*.22);
+      cx.beginPath(); cx.moveTo(px+ts*.3, py+ts*.44); cx.lineTo(px+ts*.5, py+ts*.26);
+      cx.lineTo(px+ts*.7, py+ts*.44); cx.fill();
+    }
+    if (b.road[x][y]) { cx.fillStyle = "#8a6a3c";
+      cx.beginPath(); cx.arc(px+ts*.5, py+ts*.5, ts*.08, 0, 7); cx.fill(); }
+    const res = b.resource[x][y];
+    if (res >= 0) { cx.fillStyle = RC[NAMES.resource[res]] || "#fff";
+      cx.beginPath(); cx.arc(px+ts*.2, py+ts*.8, ts*.1, 0, 7); cx.fill();
+      cx.strokeStyle = "#ffffffcc"; cx.lineWidth = 1; cx.stroke(); }
+    const bld = b.building[x][y];
+    if (bld >= 0) { cx.fillStyle = "#f5f0e4";
+      cx.fillRect(px+ts*.08, py+ts*.08, ts*.28, ts*.28);
+      cx.strokeStyle = "#00000055"; cx.strokeRect(px+ts*.08, py+ts*.08, ts*.28, ts*.28);
+      cx.fillStyle = "#3a352b"; cx.font = `${ts*.2}px system-ui`;
+      cx.textAlign = "center"; cx.textBaseline = "middle";
+      cx.fillText(NAMES.building[bld][0], px+ts*.22, py+ts*.23); }
+    const lvl = b.cityLevel[x][y];
+    if (lvl > 0 && owner >= 0) {
+      cx.fillStyle = PC[owner]; const s = ts*.56;
+      cx.beginPath(); cx.roundRect(px+(ts-s)/2, py+(ts-s)/2, s, s, 4); cx.fill();
+      cx.strokeStyle = "#ffffffd0"; cx.lineWidth = 1.5; cx.stroke();
+      cx.fillStyle = "#fff"; cx.font = `600 ${ts*.3}px system-ui`;
+      cx.textAlign = "center"; cx.textBaseline = "middle";
+      cx.fillText(lvl, px+ts/2, py+ts/2+1);
+    }
+    const ut = b.unitType[x][y];
+    if (ut >= 0 && !(lvl > 0)) {
+      const uo = b.unitOwner[x][y];
+      cx.fillStyle = PC[uo] || "#777";
+      cx.beginPath(); cx.arc(px+ts*.5, py+ts*.48, ts*.26, 0, 7); cx.fill();
+      cx.strokeStyle = "#00000088"; cx.lineWidth = 1.5; cx.stroke();
+      cx.fillStyle = "#fff"; cx.font = `700 ${ts*.26}px system-ui`;
+      cx.textAlign = "center"; cx.textBaseline = "middle";
+      cx.fillText(UG[NAMES.unit[ut]] || "?", px+ts*.5, py+ts*.49);
+      const hp = b.unitHp[x][y], mhp = b.unitMaxHp[x][y] || 1;
+      cx.fillStyle = "#00000066"; cx.fillRect(px+ts*.2, py+ts*.82, ts*.6, ts*.09);
+      cx.fillStyle = hp/mhp > .5 ? "#57b45f" : hp/mhp > .25 ? "#d9a441" : "#d64545";
+      cx.fillRect(px+ts*.2, py+ts*.82, ts*.6*Math.min(1, hp/mhp), ts*.09);
+    }
+  }
+  function overlay(f) {
+    if (!f.actionDesc) return;
+    const [tOrd, sx, sy, tx, ty] = f.actionDesc;
+    const color = NAMES.action[tOrd] === "ATTACK" ? "#e33" : "#fff";
+    if (sx >= 0) { cx.strokeStyle = color; cx.lineWidth = 2.5; cx.setLineDash([5,4]);
+      cx.strokeRect(sy*ts+2, sx*ts+2, ts-5, ts-5); cx.setLineDash([]); }
+    if (sx >= 0 && tx >= 0 && (sx !== tx || sy !== ty)) {
+      const x1 = sy*ts+ts/2, y1 = sx*ts+ts/2, x2 = ty*ts+ts/2, y2 = tx*ts+ts/2;
+      cx.strokeStyle = color; cx.lineWidth = 3;
+      cx.beginPath(); cx.moveTo(x1,y1); cx.lineTo(x2,y2); cx.stroke();
+      const a = Math.atan2(y2-y1, x2-x1);
+      cx.fillStyle = color; cx.beginPath(); cx.moveTo(x2,y2);
+      cx.lineTo(x2-11*Math.cos(a-.45), y2-11*Math.sin(a-.45));
+      cx.lineTo(x2-11*Math.cos(a+.45), y2-11*Math.sin(a+.45)); cx.fill();
+    }
+  }
+  function render() {
+    const f = F[frame];
+    cx.clearRect(0, 0, cv.width, cv.height);
+    for (let x = 0; x < N; x++) for (let y = 0; y < N; y++) tile(x, y, f.board);
+    overlay(f);
+    document.getElementById("action-now").textContent = f.action
+      ? `${TRIBE_LABEL[R.tribes[f.player]] || R.tribes[f.player]} · ${f.action}` : "initial position";
+    document.getElementById("slider").value = frame;
+    document.getElementById("counter").textContent = `${frame}/${F.length-1} · T${f.tick}`;
+  }
+  const stop = () => { playing = false; clearInterval(timer);
+    document.getElementById("play").textContent = "▶ play"; };
+  document.getElementById("play").onclick = () => {
+    if (playing) { stop(); return; }
+    if (frame >= F.length-1) frame = 0;
+    playing = true; document.getElementById("play").textContent = "⏸";
+    timer = setInterval(() => {
+      if (frame >= F.length-1) { stop(); return; }
+      frame++; render();
+    }, 220);
+  };
+  document.getElementById("slider").max = F.length-1;
+  document.getElementById("slider").oninput = e => { stop(); frame = +e.target.value; render(); };
+  render();
+})();
+</script>

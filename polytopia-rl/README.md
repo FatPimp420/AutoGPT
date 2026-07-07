@@ -74,3 +74,13 @@ Swing GUI, record a game and view it in the browser:
 The viewer shows the full board (terrain, units, cities, resources, roads),
 the acting tribe's chosen action with the policy's value estimate, a
 click-to-jump action log, and play/pause/scrub controls (space, ←/→).
+
+## Live training dashboard
+
+`train_daemon.py` runs indefinitely and re-reads `runs/control.json` every
+iteration — pause/resume, game mode, tick limit, reward shaping, entropy
+bonus, and learning rate all change mid-run without losing the network.
+Metrics stream to `runs/metrics.jsonl`; a checkpoint and a fresh self-play
+replay are saved every 25 iterations. `build_dashboard.py` renders
+`dashboard_template.html` into a mobile-first page with learning curves,
+current rules, the rule-change history, and the latest game.
