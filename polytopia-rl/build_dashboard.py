@@ -31,11 +31,7 @@ def downsample(rows, n):
     return [rows[i] for i in sorted(set(idx))]
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--out", required=True)
-    args = ap.parse_args()
-
+def build_payload():
     metrics = read_jsonl(RUNS / "metrics.jsonl")
     try:
         status = json.loads((RUNS / "status.json").read_text())
@@ -48,7 +44,7 @@ def main():
         replay = None
 
     ds = downsample(metrics, MAX_POINTS)
-    payload = {
+    return {
         "builtAt": time.time(),
         "status": status,
         "events": events,
@@ -68,12 +64,25 @@ def main():
         },
     }
 
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--json", action="store_true",
+                    help="write the raw data payload (for the PWA) instead of HTML")
+    args = ap.parse_args()
+
+    payload = build_payload()
+    blob = json.dumps(payload, separators=(",", ":"))
+    if args.json:
+        Path(args.out).write_text(blob)
+        print(f"app data built: {args.out} ({len(blob)//1024} KB)")
+        return
     tpl = (ROOT / "dashboard_template.html").read_text()
     assert "/*__DATA__*/null" in tpl
-    out = tpl.replace("/*__DATA__*/null", json.dumps(payload, separators=(",", ":")))
+    out = tpl.replace("/*__DATA__*/null", blob)
     Path(args.out).write_text(out)
-    print(f"dashboard built: {args.out} ({len(out)//1024} KB, "
-          f"{len(metrics)} iters, replay={'yes' if replay else 'no'})")
+    print(f"dashboard built: {args.out} ({len(out)//1024} KB)")
 
 
 if __name__ == "__main__":
