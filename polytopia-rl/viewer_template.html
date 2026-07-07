@@ -1,0 +1,321 @@
+<title>Tribes Self-Play Replay</title>
+<style>
+:root {
+  --bg: #f3f0e8; --surface: #fbf9f4; --ink: #26241f; --muted: #7a7466;
+  --line: #ddd6c6; --accent: #9a6b1f; --accent-ink: #fff;
+  --p0: #d64545; --p1: #4a7bd4;
+  --serif: Palatino, "Iowan Old Style", "Book Antiqua", Georgia, serif;
+  --ui: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #1a1d22; --surface: #232830; --ink: #e8e4da; --muted: #98917f;
+          --line: #343b45; --accent: #d9a441; --accent-ink: #1a1d22; }
+}
+:root[data-theme="dark"] { --bg: #1a1d22; --surface: #232830; --ink: #e8e4da;
+  --muted: #98917f; --line: #343b45; --accent: #d9a441; --accent-ink: #1a1d22; }
+:root[data-theme="light"] { --bg: #f3f0e8; --surface: #fbf9f4; --ink: #26241f;
+  --muted: #7a7466; --line: #ddd6c6; --accent: #9a6b1f; --accent-ink: #fff; }
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--ui);
+       min-height: 100vh; display: flex; flex-direction: column; }
+header { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap;
+         padding: 1rem 1.25rem .6rem; border-bottom: 1px solid var(--line); }
+header h1 { font-family: var(--serif); font-size: 1.35rem; font-weight: 600;
+            margin: 0; letter-spacing: .01em; }
+header .sub { color: var(--muted); font-size: .82rem; }
+#result-chip { margin-left: auto; font-size: .8rem; font-weight: 600;
+  padding: .25rem .7rem; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--surface); }
+
+main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 310px;
+       gap: 1rem; padding: 1rem 1.25rem; align-items: start; }
+@media (max-width: 780px) { main { grid-template-columns: 1fr; } }
+
+#boardwrap { display: flex; justify-content: center; }
+canvas { max-width: 100%; border-radius: 8px; border: 1px solid var(--line);
+         background: var(--surface); }
+
+aside { display: flex; flex-direction: column; gap: .75rem; min-width: 0; }
+.card { background: var(--surface); border: 1px solid var(--line);
+        border-radius: 8px; padding: .7rem .85rem; }
+.tribes { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+.tribe { border-left: 4px solid var(--pc, var(--muted)); }
+.tribe h2 { font-family: var(--serif); font-size: .95rem; margin: 0 0 .15rem;
+            font-weight: 600; display: flex; align-items: center; gap: .4rem; }
+.tribe .turnmark { width: .5rem; height: .5rem; border-radius: 50%;
+  background: var(--pc); opacity: 0; transition: opacity .15s; }
+.tribe.acting .turnmark { opacity: 1; }
+.tribe .score { font-family: var(--mono); font-variant-numeric: tabular-nums;
+                font-size: 1.35rem; font-weight: 600; }
+.tribe .label { font-size: .68rem; text-transform: uppercase;
+                letter-spacing: .08em; color: var(--muted); }
+
+#action-card .label { font-size: .68rem; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--muted); margin-bottom: .25rem; }
+#action-now { font-family: var(--mono); font-size: .88rem; min-height: 2.4em; }
+#valuebar { height: 5px; border-radius: 3px; background: var(--line);
+            margin-top: .5rem; position: relative; overflow: hidden; }
+#valuefill { position: absolute; top: 0; bottom: 0; background: var(--accent); }
+#valuelabel { font-size: .7rem; color: var(--muted); margin-top: .3rem; }
+
+#log { max-height: 300px; overflow-y: auto; font-family: var(--mono);
+       font-size: .74rem; line-height: 1.9; }
+#log div { cursor: pointer; padding: 0 .35rem; border-radius: 4px;
+           white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#log div:hover { background: var(--line); }
+#log div.current { background: var(--accent); color: var(--accent-ink); }
+#log .dot { display: inline-block; width: .5em; height: .5em;
+            border-radius: 50%; margin-right: .45em; }
+
+footer { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
+         padding: .75rem 1.25rem 1rem; border-top: 1px solid var(--line); }
+button, select { font: inherit; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 6px; padding: .35rem .7rem;
+  cursor: pointer; }
+button:focus-visible, select:focus-visible, input:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px; }
+#play { min-width: 5.5rem; background: var(--accent); color: var(--accent-ink);
+        border-color: var(--accent); font-weight: 600; }
+#slider { flex: 1; min-width: 140px; accent-color: var(--accent); }
+#counter { font-family: var(--mono); font-variant-numeric: tabular-nums;
+           font-size: .8rem; color: var(--muted); min-width: 9.5rem; }
+@media (prefers-reduced-motion: reduce) { .tribe .turnmark { transition: none; } }
+</style>
+
+<header>
+  <h1>Tribes Self-Play Replay</h1>
+  <span class="sub">trained PPO checkpoint · both seats · sampled actions</span>
+  <span id="result-chip"></span>
+</header>
+
+<main>
+  <div id="boardwrap"><canvas id="board" width="880" height="880"
+    aria-label="game board"></canvas></div>
+  <aside>
+    <div class="tribes">
+      <div class="card tribe" id="tribe0" style="--pc: var(--p0)">
+        <h2><span class="turnmark"></span><span class="tname"></span></h2>
+        <div class="score">0</div><div class="label">score</div>
+      </div>
+      <div class="card tribe" id="tribe1" style="--pc: var(--p1)">
+        <h2><span class="turnmark"></span><span class="tname"></span></h2>
+        <div class="score">0</div><div class="label">score</div>
+      </div>
+    </div>
+    <div class="card" id="action-card">
+      <div class="label">action</div>
+      <div id="action-now">—</div>
+      <div id="valuebar"><div id="valuefill"></div></div>
+      <div id="valuelabel">policy value estimate</div>
+    </div>
+    <div class="card"><div class="label" style="font-size:.68rem;text-transform:uppercase;
+      letter-spacing:.08em;color:var(--muted);margin-bottom:.25rem">action log</div>
+      <div id="log"></div></div>
+  </aside>
+</main>
+
+<footer>
+  <button id="prev" aria-label="step back">⏮ step</button>
+  <button id="play">▶ play</button>
+  <button id="next" aria-label="step forward">step ⏭</button>
+  <select id="speed" aria-label="playback speed">
+    <option value="600">1×</option><option value="300" selected>2×</option>
+    <option value="150">4×</option><option value="75">8×</option>
+  </select>
+  <input type="range" id="slider" min="0" value="0" step="1" aria-label="frame">
+  <span id="counter"></span>
+</footer>
+
+<script>
+const R = /*__REPLAY__*/null;
+
+const N = R.boardSize, F = R.frames, NAMES = R.names;
+const TRIBE_LABEL = { XIN_XI: "Xin-Xi", IMPERIUS: "Imperius" };
+const PLAYER_COLORS = ["#d64545", "#4a7bd4"];
+const TERRAIN_COLORS = { PLAIN:"#94b86a", SHALLOW_WATER:"#6fb9d6", DEEP_WATER:"#2f6f96",
+  MOUNTAIN:"#a8adb5", VILLAGE:"#c8a86b", CITY:"#b3a28a", FOREST:"#4d7a41", FOG:"#555555" };
+const RESOURCE_COLORS = { FISH:"#3f8fbf", FRUIT:"#c8503c", ANIMAL:"#8a5a2b",
+  WHALES:"#274e63", ORE:"#6d6a75", CROPS:"#d9b64a", RUINS:"#7a5f8a" };
+const UNIT_GLYPH = { WARRIOR:"W", RIDER:"R", DEFENDER:"D", SWORDMAN:"S", ARCHER:"A",
+  CATAPULT:"C", KNIGHT:"K", MIND_BENDER:"M", BOAT:"b", SHIP:"s", BATTLESHIP:"B", SUPERUNIT:"G" };
+
+const cv = document.getElementById("board"), cx = cv.getContext("2d");
+const ts = cv.width / N;
+let frame = 0, playing = false, timer = null;
+
+function drawTile(x, y, board) {
+  const px = y * ts, py = x * ts; // x = row, y = column
+  const terr = NAMES.terrain[board.terrain[x][y]] || "FOG";
+  cx.fillStyle = TERRAIN_COLORS[terr] || "#888";
+  cx.fillRect(px, py, ts - 1, ts - 1);
+
+  const owner = board.cityOwner[x][y];
+  if (owner >= 0) {                     // territory tint
+    cx.fillStyle = PLAYER_COLORS[owner] + "2e";
+    cx.fillRect(px, py, ts - 1, ts - 1);
+  }
+  if (terr === "FOREST") {              // tree glyphs
+    cx.fillStyle = "#2e5426";
+    for (const [dx, dy] of [[.3,.62],[.62,.45],[.45,.8]]) {
+      cx.beginPath();
+      cx.moveTo(px+dx*ts, py+dy*ts-ts*.16); cx.lineTo(px+dx*ts-ts*.09, py+dy*ts);
+      cx.lineTo(px+dx*ts+ts*.09, py+dy*ts); cx.fill();
+    }
+  } else if (terr === "MOUNTAIN") {
+    cx.strokeStyle = "#5d626b"; cx.lineWidth = 2; cx.beginPath();
+    cx.moveTo(px+ts*.25, py+ts*.72); cx.lineTo(px+ts*.5, py+ts*.3);
+    cx.lineTo(px+ts*.75, py+ts*.72); cx.stroke();
+  } else if (terr === "VILLAGE") {
+    cx.fillStyle = "#7a5f39";
+    cx.fillRect(px+ts*.36, py+ts*.42, ts*.28, ts*.22);
+    cx.beginPath(); cx.moveTo(px+ts*.3, py+ts*.44); cx.lineTo(px+ts*.5, py+ts*.26);
+    cx.lineTo(px+ts*.7, py+ts*.44); cx.fill();
+  }
+  if (board.road[x][y]) {
+    cx.fillStyle = "#8a6a3c";
+    cx.beginPath(); cx.arc(px+ts*.5, py+ts*.5, ts*.08, 0, 7); cx.fill();
+  }
+  const res = board.resource[x][y];
+  if (res >= 0) {
+    cx.fillStyle = RESOURCE_COLORS[NAMES.resource[res]] || "#fff";
+    cx.beginPath(); cx.arc(px+ts*.2, py+ts*.8, ts*.1, 0, 7); cx.fill();
+    cx.strokeStyle = "#ffffffcc"; cx.lineWidth = 1; cx.stroke();
+  }
+  const bld = board.building[x][y];
+  if (bld >= 0) {
+    cx.fillStyle = "#f5f0e4";
+    cx.fillRect(px+ts*.08, py+ts*.08, ts*.28, ts*.28);
+    cx.strokeStyle = "#00000055"; cx.strokeRect(px+ts*.08, py+ts*.08, ts*.28, ts*.28);
+    cx.fillStyle = "#3a352b"; cx.font = `${ts*.2}px ${getComputedStyle(document.body).fontFamily}`;
+    cx.textAlign = "center"; cx.textBaseline = "middle";
+    cx.fillText(NAMES.building[bld][0], px+ts*.22, py+ts*.23);
+  }
+  const lvl = board.cityLevel[x][y];
+  if (lvl > 0 && owner >= 0) {          // city centre
+    cx.fillStyle = PLAYER_COLORS[owner];
+    const s = ts*.56;
+    cx.beginPath(); cx.roundRect(px+(ts-s)/2, py+(ts-s)/2, s, s, 4); cx.fill();
+    cx.strokeStyle = "#ffffffd0"; cx.lineWidth = 1.5; cx.stroke();
+    cx.fillStyle = "#fff"; cx.font = `600 ${ts*.3}px ${getComputedStyle(document.body).fontFamily}`;
+    cx.fillText(lvl, px+ts/2, py+ts/2+1);
+  }
+  const ut = board.unitType[x][y];
+  if (ut >= 0 && !(lvl > 0)) {
+    const uo = board.unitOwner[x][y];
+    cx.fillStyle = PLAYER_COLORS[uo] || "#777";
+    cx.beginPath(); cx.arc(px+ts*.5, py+ts*.48, ts*.26, 0, 7); cx.fill();
+    cx.strokeStyle = "#00000088"; cx.lineWidth = 1.5; cx.stroke();
+    cx.fillStyle = "#fff"; cx.font = `700 ${ts*.26}px ${getComputedStyle(document.body).fontFamily}`;
+    cx.textAlign = "center"; cx.textBaseline = "middle";
+    cx.fillText(UNIT_GLYPH[NAMES.unit[ut]] || "?", px+ts*.5, py+ts*.49);
+    const hp = board.unitHp[x][y], mhp = board.unitMaxHp[x][y] || 1;
+    cx.fillStyle = "#00000066"; cx.fillRect(px+ts*.2, py+ts*.82, ts*.6, ts*.09);
+    cx.fillStyle = hp/mhp > .5 ? "#57b45f" : hp/mhp > .25 ? "#d9a441" : "#d64545";
+    cx.fillRect(px+ts*.2, py+ts*.82, ts*.6*Math.min(1, hp/mhp), ts*.09);
+  }
+}
+
+function drawActionOverlay(f) {
+  if (!f.actionDesc) return;
+  const [tOrd, sx, sy, tx, ty] = f.actionDesc;
+  const t = NAMES.action[tOrd];
+  const color = t === "ATTACK" ? "#e33" : "#ffffff";
+  if (sx >= 0) {
+    cx.strokeStyle = color; cx.lineWidth = 2.5; cx.setLineDash([5, 4]);
+    cx.strokeRect(sy*ts+2, sx*ts+2, ts-5, ts-5); cx.setLineDash([]);
+  }
+  if (sx >= 0 && tx >= 0 && (sx !== tx || sy !== ty)) {
+    const x1 = sy*ts+ts/2, y1 = sx*ts+ts/2, x2 = ty*ts+ts/2, y2 = tx*ts+ts/2;
+    cx.strokeStyle = color; cx.lineWidth = 3; cx.beginPath();
+    cx.moveTo(x1, y1); cx.lineTo(x2, y2); cx.stroke();
+    const a = Math.atan2(y2-y1, x2-x1);
+    cx.fillStyle = color; cx.beginPath(); cx.moveTo(x2, y2);
+    cx.lineTo(x2-12*Math.cos(a-.45), y2-12*Math.sin(a-.45));
+    cx.lineTo(x2-12*Math.cos(a+.45), y2-12*Math.sin(a+.45)); cx.fill();
+  }
+}
+
+function render() {
+  const f = F[frame];
+  cx.clearRect(0, 0, cv.width, cv.height);
+  for (let x = 0; x < N; x++) for (let y = 0; y < N; y++) drawTile(x, y, f.board);
+  drawActionOverlay(f);
+
+  for (const p of [0, 1]) {
+    const el = document.getElementById("tribe" + p);
+    el.querySelector(".score").textContent = f.scores[p];
+    el.classList.toggle("acting", f.player === p);
+  }
+  const an = document.getElementById("action-now");
+  an.textContent = f.action ? `${TRIBE_LABEL[R.tribes[f.player]] || R.tribes[f.player]} · ${f.action}` : "initial position";
+  const vf = document.getElementById("valuefill");
+  if (f.value !== undefined) {
+    const v = Math.max(-1.5, Math.min(1.5, f.value));
+    vf.style.left = v < 0 ? `${50 + v/1.5*50}%` : "50%";
+    vf.style.width = `${Math.abs(v)/1.5*50}%`;
+    document.getElementById("valuelabel").textContent =
+      `policy value estimate: ${f.value.toFixed(2)}`;
+  } else { vf.style.width = "0"; }
+
+  document.getElementById("slider").value = frame;
+  document.getElementById("counter").textContent =
+    `frame ${frame}/${F.length-1} · tick ${f.tick}`;
+  const cur = document.querySelector("#log .current");
+  if (cur) cur.classList.remove("current");
+  const row = document.getElementById("lg" + frame);
+  if (row) { row.classList.add("current");
+             row.scrollIntoView({ block: "nearest" }); }
+}
+
+function setFrame(i) { frame = Math.max(0, Math.min(F.length - 1, i)); render(); }
+function stop() { playing = false; clearInterval(timer);
+                  document.getElementById("play").textContent = "▶ play"; }
+function playPause() {
+  if (playing) { stop(); return; }
+  if (frame >= F.length - 1) frame = 0;
+  playing = true;
+  document.getElementById("play").textContent = "⏸ pause";
+  const ms = +document.getElementById("speed").value;
+  timer = setInterval(() => {
+    if (frame >= F.length - 1) { stop(); return; }
+    setFrame(frame + 1);
+  }, ms);
+}
+
+document.getElementById("play").onclick = playPause;
+document.getElementById("prev").onclick = () => { stop(); setFrame(frame - 1); };
+document.getElementById("next").onclick = () => { stop(); setFrame(frame + 1); };
+document.getElementById("speed").onchange = () => { if (playing) { stop(); playPause(); } };
+document.getElementById("slider").oninput = e => { stop(); setFrame(+e.target.value); };
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT") return;
+  if (e.code === "Space") { e.preventDefault(); playPause(); }
+  if (e.code === "ArrowLeft") { stop(); setFrame(frame - 1); }
+  if (e.code === "ArrowRight") { stop(); setFrame(frame + 1); }
+});
+
+// static init
+document.getElementById("slider").max = F.length - 1;
+for (const p of [0, 1])
+  document.querySelector(`#tribe${p} .tname`).textContent =
+    TRIBE_LABEL[R.tribes[p]] || R.tribes[p];
+const winner = R.result.win.indexOf(1);
+document.getElementById("result-chip").textContent = winner >= 0
+  ? `${TRIBE_LABEL[R.tribes[winner]] || R.tribes[winner]} wins · ${R.result.scores.join("–")} · ${R.result.ticks} ticks`
+  : "draw";
+document.getElementById("result-chip").style.borderColor = PLAYER_COLORS[winner] || "var(--line)";
+
+const log = document.getElementById("log");
+F.forEach((f, i) => {
+  if (!f.action) return;
+  const d = document.createElement("div");
+  d.id = "lg" + i;
+  d.innerHTML = `<span class="dot" style="background:${PLAYER_COLORS[f.player]}"></span>` +
+    `T${String(f.tick).padStart(2)} ${f.action}`;
+  d.onclick = () => { stop(); setFrame(i); };
+  log.appendChild(d);
+});
+render();
+</script>

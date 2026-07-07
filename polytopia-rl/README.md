@@ -60,3 +60,17 @@ against the framework's built-in `RandomAgent`.
 - **Observation**: per-tile one-hot planes for terrain/resource/building/unit
   plus ownership (player-relative), HP, city, road, and visibility channels,
   and a small global scalar vector (tick, stars, scores, counts).
+
+## Watching it play
+
+There's no display in the training container, so instead of the framework's
+Swing GUI, record a game and view it in the browser:
+
+```bash
+.venv/bin/python record_game.py --out replay.json   # self-play with the checkpoint
+# inject replay.json into viewer_template.html at /*__REPLAY__*/null and open it
+```
+
+The viewer shows the full board (terrain, units, cities, resources, roads),
+the acting tribe's chosen action with the policy's value estimate, a
+click-to-jump action log, and play/pause/scrub controls (space, ←/→).
