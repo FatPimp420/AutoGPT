@@ -102,7 +102,7 @@ def record_replay(env, encoder, net, rng, out):
     data = {"tribes": env.tribes, "boardSize": env.board_size,
             "maxTicks": int(env.runner.getTick()), "names": names,
             "result": {"win": obs["win"], "scores": obs["scores"], "ticks": obs["tick"]},
-            "frames": frames}
+            "frames": rg.downsample_frames(frames, env.board_size)}
     Path(out).write_text(json.dumps(data, separators=(",", ":")))
 
 
@@ -228,10 +228,14 @@ def main():
                                           "event": f"replay failed: {e}"})
             repo_sync.push_checkpoint(CKPT, it)  # durable across rollbacks
         if it % PUBLISH_EVERY == 0:
-            log_line("publish.log", {"t": time.time(), "iteration": it})
             try:
-                repo_sync.publish_data(build_payload())
-                print(f"published data.json at iter {it}")
+                ok = repo_sync.publish_data(build_payload())
+                if ok:  # only log a publish that actually reached the remote
+                    log_line("publish.log", {"t": time.time(), "iteration": it})
+                    print(f"published data.json at iter {it}")
+                else:
+                    log_line("events.jsonl", {"t": time.time(),
+                                              "event": f"publish push failed at iter {it}"})
             except Exception as e:
                 log_line("events.jsonl", {"t": time.time(),
                                           "event": f"publish failed: {e}"})

@@ -26,6 +26,22 @@ VIEW_CHANNELS = {
 }
 
 
+def downsample_frames(frames, board_size, budget_kb=1400):
+    """Caps a replay's JSON size by keeping evenly-spaced frames (always the
+    first and last). Each frame stores board_size^2 * 10 channels, so long or
+    large-map games are trimmed to keep the file viewable and pushable."""
+    if len(frames) <= 2:
+        return frames
+    per_frame_kb = 3.46 * (board_size / 11.0) ** 2  # measured at 11x11
+    max_frames = max(2, int(budget_kb / max(per_frame_kb, 0.1)))
+    if len(frames) <= max_frames:
+        return frames
+    n = len(frames)
+    idx = sorted(set([0] + [round(i * (n - 1) / (max_frames - 1))
+                            for i in range(max_frames)] + [n - 1]))
+    return [frames[i] for i in idx]
+
+
 def enum_names(java_enum):
     import jpype
     cls = jpype.JClass(java_enum)
@@ -104,7 +120,7 @@ def main():
     data = {
         "tribes": env.tribes, "boardSize": env.board_size, "maxTicks": args.max_ticks,
         "names": names, "result": {"win": obs["win"], "scores": obs["scores"], "ticks": obs["tick"]},
-        "frames": frames,
+        "frames": downsample_frames(frames, env.board_size),
     }
     Path(args.out).write_text(json.dumps(data, separators=(",", ":")))
     print(f"recorded {len(frames)} frames, result win={obs['win']} "

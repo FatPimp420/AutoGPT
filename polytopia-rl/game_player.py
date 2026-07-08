@@ -30,6 +30,7 @@ from polytopia_rl.bridge import TribesEnv, start_jvm
 from polytopia_rl.encoder import Encoder
 from polytopia_rl.model import PolicyValueNet
 from record_game import enum_names, action_text, snapshot
+from record_game import downsample_frames as snapshot_cap
 
 ROOT = Path(__file__).resolve().parent
 BOT_SEATS = {"simple", "random", "donothing", "osla", "mcts"}
@@ -116,7 +117,7 @@ def main():
         "boardSize": env.board_size, "mode": mode, "maxTicks": max_ticks,
         "names": names,
         "result": {"win": win, "scores": scores, "ticks": int(r.getTick())},
-        "frames": frames,
+        "frames": snapshot_cap(frames, env.board_size),
     }
     Path(args.out).write_text(json.dumps(data, separators=(",", ":")))
     print(f"game {req.get('id')}: {len(frames)} frames, win={win}, scores={scores}")
