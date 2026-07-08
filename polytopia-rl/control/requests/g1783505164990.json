@@ -1,0 +1,18 @@
+{
+  "id": "g1783505164990",
+  "tribes": [
+    "XIN_XI",
+    "BARDUR",
+    "KICKOO",
+    "HOODRICK"
+  ],
+  "seats": [
+    "policy",
+    "random",
+    "simple",
+    "simple"
+  ],
+  "mode": "SCORE",
+  "max_ticks": 100,
+  "seed": 322500245
+}
