@@ -1,0 +1,797 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tribes Training</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tribes RL">
+<meta name="theme-color" content="#f3f0e8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1a1d22" media="(prefers-color-scheme: dark)">
+<style>
+:root {
+  --bg: #f3f0e8; --surface: #fbf9f4; --ink: #26241f; --muted: #7a7466;
+  --line: #ddd6c6; --accent: #9a6b1f; --accent-ink: #fff; --series: #2a78d6;
+  --good: #3d7a3d; --warn: #a05a1f; --bad: #b03030;
+  --serif: Palatino, "Iowan Old Style", "Book Antiqua", Georgia, serif;
+  --ui: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #1a1d22; --surface: #232830; --ink: #e8e4da; --muted: #98917f;
+    --line: #343b45; --accent: #d9a441; --accent-ink: #1a1d22; --series: #3987e5;
+    --good: #6fbf6f; --warn: #d9a441; --bad: #e06060; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--ui);
+  padding: max(.8rem, env(safe-area-inset-top)) .8rem
+           calc(4.4rem + env(safe-area-inset-bottom));
+  max-width: 660px; margin-inline: auto; }
+h1 { font-family: var(--serif); font-size: 1.3rem; font-weight: 600; margin: .2rem 0; }
+h2 { font-size: .72rem; text-transform: uppercase; letter-spacing: .09em;
+     color: var(--muted); font-weight: 600; margin: 1.4rem 0 .5rem; }
+.topline { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+.pill { font-size: .74rem; font-weight: 700; padding: .22rem .65rem;
+  border-radius: 999px; display: inline-flex; align-items: center; gap: .35rem; }
+.pill::before { content: ""; width: .5rem; height: .5rem; border-radius: 50%;
+  background: currentColor; }
+.pill.training { color: var(--good); background: color-mix(in srgb, var(--good) 12%, transparent); }
+.pill.paused, .pill.starting, .pill.stale, .pill.offline { color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 12%, transparent); }
+.updated { font-size: .72rem; color: var(--muted); margin-left: auto; }
+.note { color: var(--muted); font-size: .82rem; margin: .1rem 0 0; }
+
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem; margin-top: .9rem; }
+@media (max-width: 480px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  padding: .5rem .6rem; }
+.tile .v { font-family: var(--mono); font-variant-numeric: tabular-nums;
+  font-size: 1.15rem; font-weight: 600; }
+.tile .k { font-size: .64rem; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--muted); }
+
+.charts { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+@media (max-width: 480px) { .charts { grid-template-columns: 1fr; } }
+.chart { background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  padding: .55rem .6rem .3rem; position: relative; }
+.chart .t { font-size: .72rem; font-weight: 600; margin-bottom: .1rem; }
+.chart .last { font-family: var(--mono); font-size: .72rem; color: var(--muted);
+  position: absolute; top: .55rem; right: .65rem; font-variant-numeric: tabular-nums; }
+.chart canvas { width: 100%; height: 88px; display: block; touch-action: pan-y; }
+.tooltip { position: absolute; pointer-events: none; background: var(--ink);
+  color: var(--bg); font: .68rem var(--mono); padding: .2rem .4rem; border-radius: 4px;
+  transform: translate(-50%, -130%); white-space: nowrap; display: none; z-index: 5; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  padding: .7rem .85rem; }
+.events { font-size: .76rem; line-height: 1.6; }
+.events time { color: var(--muted); font-family: var(--mono); margin-right: .4rem; }
+
+label { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); display: block; margin-bottom: .2rem; }
+input[type=text], input[type=password], input[type=number], select {
+  font: 0.9rem var(--ui); color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: .45rem .55rem; width: 100%; }
+input[type=checkbox] { width: 1.15rem; height: 1.15rem; accent-color: var(--accent); }
+.formgrid { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; }
+.formgrid .wide { grid-column: 1 / -1; }
+button { font: inherit; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 6px; padding: .45rem .8rem; cursor: pointer; }
+button.primary { background: var(--accent); color: var(--accent-ink);
+  border-color: var(--accent); font-weight: 600; }
+button:disabled { opacity: .5; }
+button:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px; }
+.msg { font-size: .78rem; margin-top: .5rem; min-height: 1.1em; }
+.msg.ok { color: var(--good); } .msg.err { color: var(--bad); }
+.hint { font-size: .78rem; color: var(--muted); line-height: 1.45; }
+.hint code { font-family: var(--mono); background: var(--bg); padding: .05rem .3rem;
+  border-radius: 4px; }
+
+.seat { display: grid; grid-template-columns: 1fr 1.1fr 2rem; gap: .5rem;
+  align-items: end; margin-bottom: .55rem; }
+.seat button.s-del { padding: .45rem 0; }
+
+.gamelist .g { display: flex; align-items: center; gap: .6rem; padding: .55rem .2rem;
+  border-bottom: 1px solid var(--line); cursor: pointer; }
+.gamelist .g:last-child { border-bottom: 0; }
+.gamelist .badge { font-size: .66rem; font-weight: 700; padding: .12rem .5rem;
+  border-radius: 999px; white-space: nowrap; }
+.gamelist .meta { font-size: .74rem; color: var(--muted); }
+.gamelist .title { font-size: .85rem; font-weight: 600; }
+
+#boardwrap, #gboardwrap { display: flex; justify-content: center; margin-top: .5rem; }
+canvas.board { max-width: 100%; border-radius: 8px; border: 1px solid var(--line); }
+.replaymeta { font-size: .76rem; color: var(--muted); margin: .4rem 0; }
+.transport { display: flex; align-items: center; gap: .5rem; margin-top: .5rem; }
+.transport .playbtn { background: var(--accent); color: var(--accent-ink);
+  border-color: var(--accent); font-weight: 600; min-width: 4.2rem; }
+.transport input[type=range] { flex: 1; min-width: 80px; accent-color: var(--accent);
+  width: auto; }
+.actionline { font: .74rem var(--mono); margin-top: .4rem; min-height: 1.2em; }
+
+nav { position: fixed; bottom: 0; left: 0; right: 0; display: flex;
+  background: var(--surface); border-top: 1px solid var(--line);
+  padding-bottom: env(safe-area-inset-bottom); z-index: 10; }
+nav button { flex: 1; border: 0; border-radius: 0; background: none;
+  padding: .55rem 0 .5rem; font-size: .68rem; color: var(--muted);
+  display: flex; flex-direction: column; gap: .12rem; align-items: center; }
+nav button .ic { font-size: 1.05rem; line-height: 1; }
+nav button.active { color: var(--accent); font-weight: 700; }
+
+.tab { display: none; } .tab.active { display: block; }
+details { margin-top: 1rem; }
+summary { cursor: pointer; font-size: .78rem; color: var(--muted); }
+table { border-collapse: collapse; width: 100%; font: .68rem var(--mono);
+  font-variant-numeric: tabular-nums; margin-top: .5rem; }
+th, td { text-align: right; padding: .2rem .4rem; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; }
+.tablewrap { overflow-x: auto; }
+</style>
+</head>
+<body>
+
+<section class="tab active" id="tab-train">
+  <div class="topline">
+    <h1>Tribes Training</h1>
+    <span class="pill starting" id="statuspill">loading…</span>
+    <span class="updated" id="updated"></span>
+  </div>
+  <p class="note" id="note"></p>
+  <div class="card" id="loaderr" style="display:none">Couldn't load training data —
+  you may be offline and nothing is cached yet.</div>
+
+  <div class="tiles">
+    <div class="tile"><div class="v" id="t-iter">–</div><div class="k">iterations</div></div>
+    <div class="tile"><div class="v" id="t-games">–</div><div class="k">games played</div></div>
+    <div class="tile"><div class="v" id="t-steps">–</div><div class="k">env steps</div></div>
+    <div class="tile"><div class="v" id="t-speed">–</div><div class="k">sec / iter</div></div>
+  </div>
+
+  <h2>Learning curves</h2>
+  <div class="charts" id="charts"></div>
+
+  <h2>Training rules</h2>
+  <div class="card">
+    <div class="formgrid" id="rulesform">
+      <div><label>game mode</label>
+        <select id="r-mode"><option>CAPITALS</option><option>SCORE</option><option>CONQUEST</option></select></div>
+      <div><label>turn limit</label>
+        <input type="number" id="r-max_ticks" min="5" max="60"></div>
+      <div><label>rollout steps</label>
+        <input type="number" id="r-rollout_steps" min="256" max="16384" step="256"></div>
+      <div><label>score shaping</label>
+        <input type="number" id="r-shaping_coef" step="0.0005" min="0"></div>
+      <div><label>win reward</label>
+        <input type="number" id="r-win_reward" step="0.5" min="0"></div>
+      <div><label>learning rate</label>
+        <input type="number" id="r-lr" step="0.0001" min="0"></div>
+      <div><label>entropy bonus</label>
+        <input type="number" id="r-ent_coef" step="0.005" min="0"></div>
+      <div style="display:flex;align-items:end;gap:.5rem;padding-bottom:.35rem">
+        <input type="checkbox" id="r-paused"><span style="font-size:.85rem">paused</span></div>
+      <div class="wide"><label>note (shown on this page)</label>
+        <input type="text" id="r-note" maxlength="120"></div>
+    </div>
+    <div style="display:flex;gap:.6rem;margin-top:.8rem;align-items:center">
+      <button class="primary" id="r-apply">Apply rules</button>
+      <span class="msg" id="r-msg"></span>
+    </div>
+    <p class="hint" id="r-tokenhint" style="display:none;margin-top:.6rem">
+      Add your GitHub token in <b>Settings</b> to change rules from here.</p>
+  </div>
+
+  <h2>Rule changes &amp; events</h2>
+  <div class="card events" id="events"></div>
+
+  <h2>Latest self-play game</h2>
+  <div class="card">
+    <div class="replaymeta" id="replaymeta"></div>
+    <div id="boardwrap"></div>
+    <div class="actionline" id="action-now"></div>
+    <div class="transport" id="train-transport"></div>
+  </div>
+
+  <details><summary>Recent iterations (table)</summary>
+    <div class="tablewrap"><table id="mtable"></table></div>
+  </details>
+</section>
+
+<section class="tab" id="tab-play">
+  <h1>New game</h1>
+  <p class="hint">Set up a match like in Polytopia — pick tribes and who controls
+  each seat. The training machine plays it out and it appears under <b>Games</b>,
+  usually within a minute or two.</p>
+
+  <h2>Players</h2>
+  <div class="card">
+    <div id="seats"></div>
+    <button id="addseat">+ Add player</button>
+    <p class="hint" style="margin-top:.5rem">Up to 12 players — this engine has the
+    12 regular tribes. The 4 DLC special tribes (Aquarion, Cymanti, Polaris,
+    Elyrion) aren't in it, so 15-opponent games aren't possible here.</p>
+  </div>
+
+  <h2>Match settings</h2>
+  <div class="card formgrid">
+    <div><label>game mode</label>
+      <select id="g-mode"><option>CONQUEST</option><option>CAPITALS</option><option>SCORE</option></select></div>
+    <div><label>turn limit</label>
+      <input type="number" id="g-ticks" value="20" min="5" max="60"></div>
+    <div class="wide"><label>map size</label>
+      <select id="g-mapsize">
+        <option value="0">Default (scales with players)</option>
+        <option value="11">Small · 11×11</option>
+        <option value="14">Normal · 14×14</option>
+        <option value="18">Large · 18×18</option>
+        <option value="24">Huge · 24×24</option>
+        <option value="30">Massive · 30×30 (900 tiles)</option>
+      </select></div>
+  </div>
+  <p class="hint" id="g-modehint" style="margin-top:.5rem"></p>
+
+  <div style="display:flex;gap:.6rem;margin-top:1rem;align-items:center">
+    <button class="primary" id="g-start">⚔ Start game</button>
+    <span class="msg" id="g-msg"></span>
+  </div>
+  <p class="hint" id="g-tokenhint" style="display:none;margin-top:.6rem">
+    Add your GitHub token in <b>Settings</b> to start games.</p>
+  <div id="g-pending"></div>
+</section>
+
+<section class="tab" id="tab-games">
+  <h1>Games</h1>
+  <div id="gviewer" style="display:none">
+    <button id="g-back">← All games</button>
+    <div class="replaymeta" id="greplaymeta"></div>
+    <div id="gboardwrap"></div>
+    <div class="actionline" id="g-action-now"></div>
+    <div class="transport" id="g-transport"></div>
+  </div>
+  <div id="glist">
+    <p class="hint" id="glist-empty">No games yet — set one up in <b>Play</b>.</p>
+    <div class="card gamelist" id="gamelist" style="display:none"></div>
+  </div>
+</section>
+
+<section class="tab" id="tab-settings">
+  <h1>Settings</h1>
+  <h2>GitHub token</h2>
+  <div class="card">
+    <p class="hint" style="margin-top:0">Rule changes and game requests are sent by
+    committing small files to your repo (<code>FatPimp420/AutoGPT</code>), so the
+    app needs a GitHub token with <b>write access to that repo's contents</b>. It
+    is stored only on this device.</p>
+    <p class="hint">Create one at <b>github.com → Settings → Developer settings →
+    Personal access tokens → Fine-grained tokens</b>: select only the AutoGPT
+    repository, and under Repository permissions set <b>Contents: Read and
+    write</b>. (A classic token with the <code>repo</code> scope also works.)</p>
+    <label style="margin-top:.6rem">token</label>
+    <input type="password" id="s-token" placeholder="github_pat_… or ghp_…" autocomplete="off">
+    <div style="display:flex;gap:.6rem;margin-top:.7rem;align-items:center;flex-wrap:wrap">
+      <button class="primary" id="s-save">Save &amp; test</button>
+      <button id="s-clear">Remove</button>
+      <span class="msg" id="s-msg"></span>
+    </div>
+  </div>
+  <h2>About</h2>
+  <div class="card hint" style="line-height:1.5">
+    Self-play PPO training on the GAIGResearch/Tribes engine. Training runs in a
+    Claude Code cloud container; this app reads its published data from GitHub
+    Pages and writes commands back to the repo. If the curves stop updating for a
+    long time, the training container has likely been recycled — ask Claude to
+    restart it; weights and history survive.
+  </div>
+</section>
+
+<nav>
+  <button data-tab="train" class="active"><span class="ic">▤</span>Train</button>
+  <button data-tab="play"><span class="ic">⚔</span>Play</button>
+  <button data-tab="games"><span class="ic">▶</span>Games</button>
+  <button data-tab="settings"><span class="ic">⚙</span>Settings</button>
+</nav>
+
+<script>
+"use strict";
+const OWNER = "FatPimp420", REPO = "AutoGPT",
+      BRANCH = "claude/polytopia-rl-setup-ayk6ia";
+const API = `https://api.github.com/repos/${OWNER}/${REPO}/contents/`;
+const TRIBES = ["XIN_XI","IMPERIUS","BARDUR","OUMAJI","KICKOO","HOODRICK",
+  "LUXIDOOR","VENGIR","ZEBASI","AI_MO","QUETZALI","YADAKK"];
+const TRIBE_LABEL = {XIN_XI:"Xin-Xi", IMPERIUS:"Imperius", BARDUR:"Bardur",
+  OUMAJI:"Oumaji", KICKOO:"Kickoo", HOODRICK:"Hoodrick", LUXIDOOR:"Luxidoor",
+  VENGIR:"Vengir", ZEBASI:"Zebasi", AI_MO:"Aï-Mo", QUETZALI:"Quetzali",
+  YADAKK:"Yădakk"};
+const CONTROLLERS = [["policy","Trained AI"], ["policy-greedy","Trained AI (best move)"],
+  ["mcts","Bot · Crazy (MCTS)"], ["osla","Bot · Hard (lookahead)"],
+  ["simple","Bot · Normal (rules)"], ["random","Bot · Easy (random)"],
+  ["donothing","Bot · passive"]];
+const PC = ["#d64545", "#4a7bd4", "#3f9c5a", "#c78f2f"];
+const RULE_KEYS = ["mode","max_ticks","rollout_steps","shaping_coef",
+  "win_reward","lr","ent_coef","paused","note"];
+
+const $ = id => document.getElementById(id);
+const token = () => localStorage.getItem("gh_token") || "";
+const fmt = n => n >= 1e6 ? (n/1e6).toFixed(1)+"M" : n >= 1e3 ? (n/1e3).toFixed(1)+"k" : n;
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x => x.classList.toggle("active", x === b));
+  document.querySelectorAll(".tab").forEach(t =>
+    t.classList.toggle("active", t.id === "tab-" + b.dataset.tab));
+  stopAllReplays();
+  if (b.dataset.tab === "games") refreshGames();
+});
+
+async function ghPut(path, obj, message) {
+  if (!token()) throw new Error("no token — add one in Settings");
+  const headers = {Authorization: "Bearer " + token(),
+                   Accept: "application/vnd.github+json"};
+  let sha;
+  const g = await fetch(API + path + "?ref=" + encodeURIComponent(BRANCH), {headers});
+  if (g.ok) sha = (await g.json()).sha;
+  const content = btoa(unescape(encodeURIComponent(JSON.stringify(obj, null, 2))));
+  const r = await fetch(API + path, {method: "PUT", headers,
+    body: JSON.stringify({message, content, branch: BRANCH, ...(sha && {sha})})});
+  if (!r.ok) {
+    const e = await r.json().catch(() => ({}));
+    throw new Error(e.message || "HTTP " + r.status);
+  }
+}
+
+let activeTimers = [];
+function stopAllReplays() { activeTimers.forEach(t => clearInterval(t)); activeTimers = []; }
+
+function makeReplayViewer(boardWrap, transportEl, actionEl, metaEl, R) {
+  stopAllReplays();
+  boardWrap.innerHTML = ""; transportEl.innerHTML = "";
+  const N = R.boardSize, F = R.frames, NAMES = R.names;
+  const TC = {PLAIN:"#94b86a", SHALLOW_WATER:"#6fb9d6", DEEP_WATER:"#2f6f96",
+    MOUNTAIN:"#a8adb5", VILLAGE:"#c8a86b", CITY:"#b3a28a", FOREST:"#4d7a41", FOG:"#555"};
+  const RC = {FISH:"#3f8fbf", FRUIT:"#c8503c", ANIMAL:"#8a5a2b", WHALES:"#274e63",
+    ORE:"#6d6a75", CROPS:"#d9b64a", RUINS:"#7a5f8a"};
+  const UG = {WARRIOR:"W", RIDER:"R", DEFENDER:"D", SWORDMAN:"S", ARCHER:"A",
+    CATAPULT:"C", KNIGHT:"K", MIND_BENDER:"M", BOAT:"b", SHIP:"s", BATTLESHIP:"B",
+    SUPERUNIT:"G"};
+  const w = (R.result.win || []).indexOf(1);
+  const seatTxt = R.seats ? " · " + R.seats.map((s,i) =>
+    `${TRIBE_LABEL[R.tribes[i]] || R.tribes[i]}=${(CONTROLLERS.find(c=>c[0]===s)||[,s])[1]}`)
+    .join(", ") : "";
+  metaEl.textContent =
+    `${w >= 0 ? (TRIBE_LABEL[R.tribes[w]] || R.tribes[w]) + " wins" : "draw"} · ` +
+    `${R.result.scores.join("–")} · ${R.result.ticks} ticks · ${F.length-1} actions` + seatTxt;
+
+  const cv = document.createElement("canvas");
+  cv.className = "board"; cv.width = 660; cv.height = 660;
+  boardWrap.appendChild(cv);
+  const cx = cv.getContext("2d");
+  const ts = cv.width / N;
+  let frame = 0, playing = false, timer = null;
+
+  function tile(x, y, b) {
+    const px = y*ts, py = x*ts;
+    const terr = NAMES.terrain[b.terrain[x][y]] || "FOG";
+    cx.fillStyle = TC[terr] || "#888"; cx.fillRect(px, py, ts-1, ts-1);
+    const owner = b.cityOwner[x][y];
+    if (owner >= 0) { cx.fillStyle = PC[owner]+"2e"; cx.fillRect(px, py, ts-1, ts-1); }
+    if (terr === "FOREST") {
+      cx.fillStyle = "#2e5426";
+      for (const [dx,dy] of [[.3,.62],[.62,.45],[.45,.8]]) {
+        cx.beginPath(); cx.moveTo(px+dx*ts, py+dy*ts-ts*.16);
+        cx.lineTo(px+dx*ts-ts*.09, py+dy*ts); cx.lineTo(px+dx*ts+ts*.09, py+dy*ts); cx.fill();
+      }
+    } else if (terr === "MOUNTAIN") {
+      cx.strokeStyle = "#5d626b"; cx.lineWidth = 2; cx.beginPath();
+      cx.moveTo(px+ts*.25, py+ts*.72); cx.lineTo(px+ts*.5, py+ts*.3);
+      cx.lineTo(px+ts*.75, py+ts*.72); cx.stroke();
+    } else if (terr === "VILLAGE") {
+      cx.fillStyle = "#7a5f39"; cx.fillRect(px+ts*.36, py+ts*.42, ts*.28, ts*.22);
+      cx.beginPath(); cx.moveTo(px+ts*.3, py+ts*.44); cx.lineTo(px+ts*.5, py+ts*.26);
+      cx.lineTo(px+ts*.7, py+ts*.44); cx.fill();
+    }
+    if (b.road[x][y]) { cx.fillStyle = "#8a6a3c";
+      cx.beginPath(); cx.arc(px+ts*.5, py+ts*.5, ts*.08, 0, 7); cx.fill(); }
+    const res = b.resource[x][y];
+    if (res >= 0) { cx.fillStyle = RC[NAMES.resource[res]] || "#fff";
+      cx.beginPath(); cx.arc(px+ts*.2, py+ts*.8, ts*.1, 0, 7); cx.fill();
+      cx.strokeStyle = "#ffffffcc"; cx.lineWidth = 1; cx.stroke(); }
+    const bld = b.building[x][y];
+    if (bld >= 0) { cx.fillStyle = "#f5f0e4";
+      cx.fillRect(px+ts*.08, py+ts*.08, ts*.28, ts*.28);
+      cx.strokeStyle = "#00000055"; cx.strokeRect(px+ts*.08, py+ts*.08, ts*.28, ts*.28);
+      cx.fillStyle = "#3a352b"; cx.font = `${ts*.2}px system-ui`;
+      cx.textAlign = "center"; cx.textBaseline = "middle";
+      cx.fillText(NAMES.building[bld][0], px+ts*.22, py+ts*.23); }
+    const lvl = b.cityLevel[x][y];
+    if (lvl > 0 && owner >= 0) {
+      cx.fillStyle = PC[owner] || "#777"; const s = ts*.56;
+      cx.beginPath(); cx.roundRect(px+(ts-s)/2, py+(ts-s)/2, s, s, 4); cx.fill();
+      cx.strokeStyle = "#ffffffd0"; cx.lineWidth = 1.5; cx.stroke();
+      cx.fillStyle = "#fff"; cx.font = `600 ${ts*.3}px system-ui`;
+      cx.textAlign = "center"; cx.textBaseline = "middle";
+      cx.fillText(lvl, px+ts/2, py+ts/2+1);
+    }
+    const ut = b.unitType[x][y];
+    if (ut >= 0 && !(lvl > 0)) {
+      const uo = b.unitOwner[x][y];
+      cx.fillStyle = PC[uo] || "#777";
+      cx.beginPath(); cx.arc(px+ts*.5, py+ts*.48, ts*.26, 0, 7); cx.fill();
+      cx.strokeStyle = "#00000088"; cx.lineWidth = 1.5; cx.stroke();
+      cx.fillStyle = "#fff"; cx.font = `700 ${ts*.26}px system-ui`;
+      cx.textAlign = "center"; cx.textBaseline = "middle";
+      cx.fillText(UG[NAMES.unit[ut]] || "?", px+ts*.5, py+ts*.49);
+      const hp = b.unitHp[x][y], mhp = b.unitMaxHp[x][y] || 1;
+      cx.fillStyle = "#00000066"; cx.fillRect(px+ts*.2, py+ts*.82, ts*.6, ts*.09);
+      cx.fillStyle = hp/mhp > .5 ? "#57b45f" : hp/mhp > .25 ? "#d9a441" : "#d64545";
+      cx.fillRect(px+ts*.2, py+ts*.82, ts*.6*Math.min(1, hp/mhp), ts*.09);
+    }
+  }
+  function overlay(f) {
+    if (!f.actionDesc) return;
+    const [tOrd, sx, sy, tx, ty] = f.actionDesc;
+    const color = NAMES.action[tOrd] === "ATTACK" ? "#e33" : "#fff";
+    if (sx >= 0) { cx.strokeStyle = color; cx.lineWidth = 2.5; cx.setLineDash([5,4]);
+      cx.strokeRect(sy*ts+2, sx*ts+2, ts-5, ts-5); cx.setLineDash([]); }
+    if (sx >= 0 && tx >= 0 && (sx !== tx || sy !== ty)) {
+      const x1 = sy*ts+ts/2, y1 = sx*ts+ts/2, x2 = ty*ts+ts/2, y2 = tx*ts+ts/2;
+      cx.strokeStyle = color; cx.lineWidth = 3;
+      cx.beginPath(); cx.moveTo(x1,y1); cx.lineTo(x2,y2); cx.stroke();
+      const a = Math.atan2(y2-y1, x2-x1);
+      cx.fillStyle = color; cx.beginPath(); cx.moveTo(x2,y2);
+      cx.lineTo(x2-11*Math.cos(a-.45), y2-11*Math.sin(a-.45));
+      cx.lineTo(x2-11*Math.cos(a+.45), y2-11*Math.sin(a+.45)); cx.fill();
+    }
+  }
+  transportEl.innerHTML = `<button class="playbtn">▶ play</button>
+    <input type="range" min="0" max="${F.length-1}" value="0" step="1" aria-label="frame">
+    <span style="font:.7rem var(--mono);color:var(--muted)" class="ctr"></span>`;
+  const playBtn = transportEl.querySelector(".playbtn");
+  const slider = transportEl.querySelector("input");
+  const ctr = transportEl.querySelector(".ctr");
+
+  function render() {
+    const f = F[frame];
+    cx.clearRect(0, 0, cv.width, cv.height);
+    for (let x = 0; x < N; x++) for (let y = 0; y < N; y++) tile(x, y, f.board);
+    overlay(f);
+    actionEl.textContent = f.action
+      ? `${TRIBE_LABEL[R.tribes[f.player]] || R.tribes[f.player]} · ${f.action}`
+      : "initial position";
+    slider.value = frame;
+    ctr.textContent = `${frame}/${F.length-1} · T${f.tick}`;
+  }
+  const stop = () => { playing = false; clearInterval(timer); playBtn.textContent = "▶ play"; };
+  playBtn.onclick = () => {
+    if (playing) { stop(); return; }
+    if (frame >= F.length-1) frame = 0;
+    playing = true; playBtn.textContent = "⏸";
+    timer = setInterval(() => { if (frame >= F.length-1) { stop(); return; } frame++; render(); }, 200);
+    activeTimers.push(timer);
+  };
+  slider.oninput = e => { stop(); frame = +e.target.value; render(); };
+  render();
+}
+
+let D = null, lastBuilt = 0, rulesDirty = false;
+async function load(first) {
+  try {
+    const r = await fetch("data/data.json", {cache: "no-store"});
+    if (!r.ok) throw new Error(r.status);
+    const d = await r.json();
+    $("loaderr").style.display = "none";
+    if (d.builtAt !== lastBuilt) { lastBuilt = d.builtAt; D = d; renderTrain(); }
+    else fmtAge();
+  } catch (e) {
+    if (first && !D) {
+      $("loaderr").style.display = "block";
+      $("statuspill").textContent = "offline"; $("statuspill").className = "pill offline";
+    }
+  }
+}
+const ageMin = () => D ? (Date.now()/1000 - D.builtAt) / 60 : 0;
+function fmtAge() {
+  if (!D) return;
+  const m = ageMin();
+  $("updated").textContent = m < 1.5 ? "updated just now" : `updated ${Math.round(m)} min ago`;
+  const st = D.status.state, stale = m > 45;
+  $("statuspill").textContent = (stale ? "stale — data stopped flowing" : st) +
+    (st === "training" && !stale ? " · iter " + D.status.iteration : "");
+  $("statuspill").className = "pill " + (stale ? "stale" : st);
+}
+setInterval(fmtAge, 30000);
+
+let redraws = [];
+function drawChart(cv, xs, ys) {
+  const dpr = devicePixelRatio || 1;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  if (!w) return null;
+  cv.width = w * dpr; cv.height = h * dpr;
+  const c = cv.getContext("2d"); c.scale(dpr, dpr);
+  c.clearRect(0, 0, w, h);
+  if (xs.length < 2) { c.fillStyle = css("--muted"); c.font = "11px system-ui";
+    c.fillText("waiting for data…", 8, h/2); return null; }
+  const pad = {l: 6, r: 34, t: 8, b: 6};
+  const ymin = Math.min(...ys), ymax = Math.max(...ys), yr = (ymax - ymin) || 1;
+  const X = i => pad.l + (w - pad.l - pad.r) * i / (xs.length - 1);
+  const Y = v => pad.t + (h - pad.t - pad.b) * (1 - (v - ymin) / yr);
+  c.strokeStyle = css("--line"); c.lineWidth = 1;
+  for (const f of [0, .5, 1]) { c.beginPath(); c.moveTo(pad.l, Y(ymin + f*yr));
+    c.lineTo(w - pad.r, Y(ymin + f*yr)); c.globalAlpha = .6; c.stroke(); c.globalAlpha = 1; }
+  c.strokeStyle = css("--series"); c.lineWidth = 2; c.lineJoin = "round"; c.beginPath();
+  ys.forEach((v, i) => i ? c.lineTo(X(i), Y(v)) : c.moveTo(X(i), Y(v)));
+  c.stroke();
+  c.fillStyle = css("--series");
+  c.beginPath(); c.arc(X(xs.length-1), Y(ys[ys.length-1]), 3.5, 0, 7); c.fill();
+  c.strokeStyle = css("--surface"); c.lineWidth = 2; c.stroke();
+  return {X, Y};
+}
+const CHARTS = [["entropy","Policy entropy"], ["value_loss","Value loss"],
+  ["mean_score","Mean game score"], ["mean_len","Game length (actions)"]];
+
+function renderTrain() {
+  fmtAge();
+  $("note").textContent = (D.status.config && D.status.config.note)
+    ? "“" + D.status.config.note + "”" : "";
+  $("t-iter").textContent = fmt(D.totals.iterations);
+  $("t-games").textContent = fmt(D.totals.games);
+  $("t-steps").textContent = fmt(D.totals.steps);
+  const lastIter = D.recent[D.recent.length-1];
+  $("t-speed").textContent = lastIter ? lastIter.iter_s : "–";
+
+  const chartsEl = $("charts");
+  chartsEl.innerHTML = ""; redraws = [];
+  for (const [key, title] of CHARTS) {
+    const div = document.createElement("div");
+    div.className = "chart";
+    const s = D.series[key] || [];
+    div.innerHTML = `<div class="t">${title}</div>
+      <div class="last">${s.length ? s[s.length-1] : "–"}</div>
+      <canvas></canvas><div class="tooltip"></div>`;
+    chartsEl.appendChild(div);
+    const cv = div.querySelector("canvas"), tip = div.querySelector(".tooltip");
+    const xs = D.series.iter, ys = s;
+    let geom = drawChart(cv, xs, ys);
+    redraws.push(() => { geom = drawChart(cv, xs, ys); });
+    cv.addEventListener("pointermove", e => {
+      if (!geom || !xs.length) return;
+      const r = cv.getBoundingClientRect();
+      const i = Math.max(0, Math.min(xs.length-1,
+        Math.round((e.clientX - r.left - 6) / (r.width - 40) * (xs.length-1))));
+      tip.style.display = "block"; tip.style.left = (e.clientX - r.left) + "px";
+      tip.style.top = geom.Y(ys[i]) + "px"; tip.textContent = `iter ${xs[i]} · ${ys[i]}`;
+    });
+    cv.addEventListener("pointerleave", () => tip.style.display = "none");
+  }
+
+  if (!rulesDirty) fillRulesForm(D.status.config || {});
+  $("r-tokenhint").style.display = token() ? "none" : "block";
+  $("g-tokenhint").style.display = token() ? "none" : "block";
+
+  $("events").innerHTML = (D.events || []).slice().reverse().map(e => {
+    const d = new Date(e.t * 1000);
+    const when = d.toLocaleString(undefined, {month:"short", day:"numeric",
+      hour:"2-digit", minute:"2-digit"});
+    const what = e.event === "rules changed"
+      ? "rules changed: " + Object.entries(e.changed)
+          .map(([k,v]) => `${k}→${JSON.stringify(v)}`).join(", ")
+      : e.event;
+    return `<div><time>${when}</time>${what}</div>`;
+  }).join("") || "<div>no events yet</div>";
+
+  const cols = ["iter","games","decided","mean_len","mean_score","entropy","value_loss","iter_s"];
+  $("mtable").innerHTML = "<tr>" + cols.map(c => `<th>${c}</th>`).join("") + "</tr>" +
+    D.recent.slice().reverse().map(m =>
+      "<tr>" + cols.map(c => `<td>${m[c]}</td>`).join("") + "</tr>").join("");
+
+  if (D.replay)
+    makeReplayViewer($("boardwrap"), $("train-transport"), $("action-now"), $("replaymeta"), D.replay);
+  else $("replaymeta").textContent = "no replay recorded yet";
+}
+addEventListener("resize", () => redraws.forEach(f => f()));
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change",
+  () => redraws.forEach(f => f()));
+
+function fillRulesForm(cfg) {
+  for (const k of RULE_KEYS) {
+    const el = $("r-" + k);
+    if (!el) continue;
+    if (k === "paused") el.checked = !!cfg[k];
+    else el.value = cfg[k] ?? "";
+  }
+}
+document.querySelectorAll("#rulesform input, #rulesform select")
+  .forEach(el => el.addEventListener("input", () => rulesDirty = true));
+
+$("r-apply").onclick = async () => {
+  const msg = $("r-msg");
+  msg.className = "msg"; msg.textContent = "committing…";
+  const cfg = {};
+  for (const k of RULE_KEYS) {
+    const el = $("r-" + k);
+    if (k === "paused") cfg[k] = el.checked;
+    else if (["mode","note"].includes(k)) cfg[k] = el.value;
+    else cfg[k] = Number(el.value);
+  }
+  try {
+    await ghPut("polytopia-rl/control/control.json", cfg, "App: update training rules");
+    rulesDirty = false;
+    msg.className = "msg ok"; msg.textContent = "sent — applies within ~1 min";
+  } catch (e) { msg.className = "msg err"; msg.textContent = e.message; }
+};
+
+function seatRow(i, tribe, ctrl) {
+  const d = document.createElement("div");
+  d.className = "seat";
+  d.innerHTML = `
+    <div><label>tribe</label><select class="s-tribe">${TRIBES.map(t =>
+      `<option value="${t}" ${t===tribe?"selected":""}>${TRIBE_LABEL[t]}</option>`).join("")}</select></div>
+    <div><label>controlled by</label><select class="s-ctrl">${CONTROLLERS.map(([v,l]) =>
+      `<option value="${v}" ${v===ctrl?"selected":""}>${l}</option>`).join("")}</select></div>
+    <button class="s-del" title="remove" ${i<2?"disabled":""}>✕</button>`;
+  d.querySelector(".s-del").onclick = () => { if ($("seats").children.length > 2) d.remove(); };
+  return d;
+}
+function firstUnusedTribe() {
+  const used = new Set([...$("seats").querySelectorAll(".s-tribe")].map(s => s.value));
+  return TRIBES.find(t => !used.has(t)) || TRIBES[0];
+}
+$("seats").appendChild(seatRow(0, "XIN_XI", "policy"));
+$("seats").appendChild(seatRow(1, "IMPERIUS", "policy"));
+const MAX_PLAYERS = 12;  // engine has 12 tribes; no DLC tribes exist
+$("addseat").onclick = () => {
+  const n = $("seats").children.length;
+  if (n < MAX_PLAYERS) $("seats").appendChild(seatRow(n, firstUnusedTribe(), "simple"));
+  $("addseat").disabled = $("seats").children.length >= MAX_PLAYERS;
+};
+
+const MODE_HINT = {
+  CONQUEST: "Last tribe standing wins — no turn limit. A tribe is knocked out when it loses all its cities. (Just like Domination in Polytopia.)",
+  CAPITALS: "Win by controlling every tribe's capital before the turn limit.",
+  SCORE: "Highest score when the turn limit is reached wins.",
+};
+function updateModeHint() {
+  const m = $("g-mode").value;
+  $("g-modehint").textContent = MODE_HINT[m] || "";
+  const conquest = m === "CONQUEST";
+  $("g-ticks").disabled = conquest;
+  $("g-ticks").parentElement.style.opacity = conquest ? ".45" : "1";
+}
+$("g-mode").addEventListener("change", updateModeHint);
+updateModeHint();
+
+$("g-start").onclick = async () => {
+  const msg = $("g-msg");
+  const rows = [...$("seats").children];
+  const tribes = rows.map(r => r.querySelector(".s-tribe").value);
+  const seats = rows.map(r => r.querySelector(".s-ctrl").value);
+  if (new Set(tribes).size !== tribes.length) {
+    msg.className = "msg err"; msg.textContent = "each player needs a different tribe"; return;
+  }
+  const id = "g" + Date.now();
+  const mode = $("g-mode").value;
+  const req = {id, tribes, seats, mode, seed: Math.floor(Math.random() * 1e9)};
+  if (mode !== "CONQUEST") req.max_ticks = +$("g-ticks").value || 20;
+  const ms = +$("g-mapsize").value;
+  if (ms) req.map_size = ms;
+  msg.className = "msg"; msg.textContent = "committing…";
+  try {
+    await ghPut(`polytopia-rl/control/requests/${id}.json`, req, `App: game request ${id}`);
+    const pend = JSON.parse(localStorage.getItem("pending") || "[]");
+    pend.unshift({id, t: Date.now(), tribes, seats});
+    localStorage.setItem("pending", JSON.stringify(pend.slice(0, 10)));
+    msg.className = "msg ok"; msg.textContent = "queued! check Games in a minute or two";
+    renderPending();
+  } catch (e) { msg.className = "msg err"; msg.textContent = e.message; }
+};
+
+function renderPending() {
+  const pend = JSON.parse(localStorage.getItem("pending") || "[]");
+  $("g-pending").innerHTML = pend.length
+    ? "<h2>Queued</h2><div class='card hint'>" + pend.map(p =>
+        `${p.tribes.map(t => TRIBE_LABEL[t] || t).join(" vs ")} — waiting to be played`)
+        .join("<br>") + "</div>" : "";
+}
+
+let gamesIndex = [];
+async function refreshGames() {
+  try {
+    const r = await fetch("data/games/index.json", {cache: "no-store"});
+    if (r.ok) gamesIndex = await r.json();
+  } catch (e) { /* keep previous */ }
+  const pend = JSON.parse(localStorage.getItem("pending") || "[]")
+    .filter(p => !gamesIndex.some(g => g.id === p.id) && Date.now() - p.t < 36e5);
+  localStorage.setItem("pending", JSON.stringify(pend));
+  renderPending();
+
+  const list = $("gamelist");
+  if (!gamesIndex.length) { $("glist-empty").style.display = "block";
+    list.style.display = "none"; return; }
+  $("glist-empty").style.display = "none"; list.style.display = "block";
+  list.innerHTML = gamesIndex.map(g => {
+    if (g.error) return `<div class="g"><div><div class="title">game failed to play</div>
+      <div class="meta">${(g.tribes||[]).map(t => TRIBE_LABEL[t]||t).join(" vs ")}</div></div></div>`;
+    const w = (g.result.win || []).indexOf(1);
+    const winner = w >= 0 ? (TRIBE_LABEL[g.tribes[w]] || g.tribes[w]) : "draw";
+    const when = new Date(g.t * 1000).toLocaleString(undefined,
+      {month:"short", day:"numeric", hour:"2-digit", minute:"2-digit"});
+    const col = PC[w] || "var(--muted)";
+    return `<div class="g" data-id="${g.id}">
+      <span class="badge" style="background:${col}22;color:${col}">${winner}</span>
+      <div><div class="title">${g.tribes.map(t => TRIBE_LABEL[t] || t).join(" vs ")}</div>
+      <div class="meta">${g.result.scores.join("–")} · ${g.result.ticks} ticks · ${when}</div></div></div>`;
+  }).join("");
+  list.querySelectorAll(".g[data-id]").forEach(el => el.onclick = () => openGame(el.dataset.id));
+}
+setInterval(() => {
+  if ($("tab-games").classList.contains("active") && $("gviewer").style.display === "none")
+    refreshGames();
+}, 45000);
+
+async function openGame(id) {
+  try {
+    const r = await fetch(`data/games/${id}.json`, {cache: "no-store"});
+    const replay = await r.json();
+    $("glist").style.display = "none"; $("gviewer").style.display = "block";
+    makeReplayViewer($("gboardwrap"), $("g-transport"), $("g-action-now"), $("greplaymeta"), replay);
+  } catch (e) { /* leave list showing */ }
+}
+$("g-back").onclick = () => {
+  stopAllReplays(); $("gviewer").style.display = "none"; $("glist").style.display = "block";
+};
+
+$("s-token").value = token();
+$("s-save").onclick = async () => {
+  const msg = $("s-msg");
+  const t = $("s-token").value.trim();
+  if (!t) { msg.className = "msg err"; msg.textContent = "paste a token first"; return; }
+  msg.className = "msg"; msg.textContent = "testing…";
+  try {
+    const r = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}`, {
+      headers: {Authorization: "Bearer " + t, Accept: "application/vnd.github+json"}});
+    if (!r.ok) throw new Error("token rejected (HTTP " + r.status + ")");
+    const j = await r.json();
+    if (!j.permissions || !(j.permissions.push || j.permissions.admin))
+      throw new Error("token works but lacks write access to this repo");
+    localStorage.setItem("gh_token", t);
+    msg.className = "msg ok"; msg.textContent = "token saved — write access confirmed";
+    $("r-tokenhint").style.display = "none"; $("g-tokenhint").style.display = "none";
+  } catch (e) { msg.className = "msg err"; msg.textContent = e.message; }
+};
+$("s-clear").onclick = () => {
+  localStorage.removeItem("gh_token"); $("s-token").value = "";
+  $("s-msg").className = "msg"; $("s-msg").textContent = "removed";
+};
+
+load(true);
+setInterval(load, 120000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+renderPending();
+refreshGames();
+// Register the service worker and reload once when a new version takes over,
+// so a redeploy shows up without the user having to reinstall the app.
+if ("serviceWorker" in navigator) {
+  let reloading = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (reloading) return;
+    reloading = true;
+    location.reload();
+  });
+  navigator.serviceWorker.register("sw.js").then(reg => {
+    reg.addEventListener("updatefound", () => {
+      const nw = reg.installing;
+      if (nw) nw.addEventListener("statechange", () => {
+        if (nw.state === "installed" && navigator.serviceWorker.controller)
+          nw.postMessage?.("skip");  // new SW already calls skipWaiting()
+      });
+    });
+    setInterval(() => reg.update().catch(() => {}), 60000);  // check hourly-ish
+  }).catch(() => {});
+}
+</script>
+</body>
+</html>
