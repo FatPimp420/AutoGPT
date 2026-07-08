@@ -106,16 +106,20 @@ def main():
         frame["board"] = snapshot(obs) if not obs["done"] else frames[-1]["board"]
         frames.append(frame)
 
+    # Read the final outcome straight from the runner so it's well-defined even
+    # if the game hit the step guard without a natural terminal state.
+    r = env.runner
+    win = [int(r.getWinStatus(i)) for i in range(env.n_players)]
+    scores = [int(r.getScore(i)) for i in range(env.n_players)]
     data = {
         "id": req.get("id"), "tribes": tribes, "seats": seats,
         "boardSize": env.board_size, "mode": mode, "maxTicks": max_ticks,
         "names": names,
-        "result": {"win": obs["win"], "scores": obs["scores"], "ticks": obs["tick"]},
+        "result": {"win": win, "scores": scores, "ticks": int(r.getTick())},
         "frames": frames,
     }
     Path(args.out).write_text(json.dumps(data, separators=(",", ":")))
-    print(f"game {req.get('id')}: {len(frames)} frames, win={obs['win']}, "
-          f"scores={obs['scores']}")
+    print(f"game {req.get('id')}: {len(frames)} frames, win={win}, scores={scores}")
 
 
 if __name__ == "__main__":
