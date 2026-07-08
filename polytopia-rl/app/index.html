@@ -733,8 +733,26 @@ setInterval(load, 120000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
 renderPending();
 refreshGames();
-if ("serviceWorker" in navigator)
-  navigator.serviceWorker.register("sw.js").catch(() => {});
+// Register the service worker and reload once when a new version takes over,
+// so a redeploy shows up without the user having to reinstall the app.
+if ("serviceWorker" in navigator) {
+  let reloading = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (reloading) return;
+    reloading = true;
+    location.reload();
+  });
+  navigator.serviceWorker.register("sw.js").then(reg => {
+    reg.addEventListener("updatefound", () => {
+      const nw = reg.installing;
+      if (nw) nw.addEventListener("statechange", () => {
+        if (nw.state === "installed" && navigator.serviceWorker.controller)
+          nw.postMessage?.("skip");  // new SW already calls skipWaiting()
+      });
+    });
+    setInterval(() => reg.update().catch(() => {}), 60000);  // check hourly-ish
+  }).catch(() => {});
+}
 </script>
 </body>
 </html>
