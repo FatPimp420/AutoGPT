@@ -25,6 +25,10 @@ def read_jsonl(path, limit=None):
 
 
 def downsample(rows, n):
+    if n <= 0:
+        return []
+    if n == 1:
+        return rows[-1:]
     if len(rows) <= n:
         return rows
     idx = [round(i * (len(rows) - 1) / (n - 1)) for i in range(n)]
@@ -44,24 +48,37 @@ def build_payload():
         replay = None
 
     ds = downsample(metrics, MAX_POINTS)
+    keys = ("iter", "entropy", "value_loss", "mean_score", "mean_len")
+    series = {k: [m[k] for m in ds] for k in keys}
+    totals = {
+        "iterations": metrics[-1]["iter"] if metrics else 0,
+        "games": sum(m["games"] for m in metrics),
+        "steps": sum(m["steps"] for m in metrics),
+    }
+
+    # runs/history.json is the last payload pushed before a container reset:
+    # splice its series/totals in so curves stay continuous across resets.
+    try:
+        hist = json.loads((RUNS / "history.json").read_text())
+        first = metrics[0]["iter"] if metrics else float("inf")
+        keep = [i for i, it in enumerate(hist["series"]["iter"]) if it < first]
+        idx = downsample(keep, MAX_POINTS - len(series["iter"]) if metrics else MAX_POINTS)
+        for k in keys:
+            series[k] = [hist["series"][k][i] for i in idx] + series[k]
+        totals["iterations"] = max(totals["iterations"], hist["totals"]["iterations"])
+        totals["games"] += hist["totals"]["games"]
+        totals["steps"] += hist["totals"]["steps"]
+    except (FileNotFoundError, KeyError, json.JSONDecodeError):
+        pass
+
     return {
         "builtAt": time.time(),
         "status": status,
         "events": events,
         "replay": replay,
-        "totals": {
-            "iterations": metrics[-1]["iter"] if metrics else 0,
-            "games": sum(m["games"] for m in metrics),
-            "steps": sum(m["steps"] for m in metrics),
-        },
+        "totals": totals,
         "recent": metrics[-MAX_TABLE:],
-        "series": {
-            "iter": [m["iter"] for m in ds],
-            "entropy": [m["entropy"] for m in ds],
-            "value_loss": [m["value_loss"] for m in ds],
-            "mean_score": [m["mean_score"] for m in ds],
-            "mean_len": [m["mean_len"] for m in ds],
-        },
+        "series": series,
     }
 
 
