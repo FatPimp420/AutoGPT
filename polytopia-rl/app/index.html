@@ -160,7 +160,7 @@ th { color: var(--muted); font-weight: 600; }
   <div class="card">
     <div class="formgrid" id="rulesform">
       <div><label>game mode</label>
-        <select id="r-mode"><option>CAPITALS</option><option>SCORE</option></select></div>
+        <select id="r-mode"><option>CAPITALS</option><option>SCORE</option><option>CONQUEST</option></select></div>
       <div><label>turn limit</label>
         <input type="number" id="r-max_ticks" min="5" max="60"></div>
       <div><label>rollout steps</label>
@@ -217,10 +217,11 @@ th { color: var(--muted); font-weight: 600; }
   <h2>Match settings</h2>
   <div class="card formgrid">
     <div><label>game mode</label>
-      <select id="g-mode"><option>CAPITALS</option><option>SCORE</option></select></div>
+      <select id="g-mode"><option>CONQUEST</option><option>CAPITALS</option><option>SCORE</option></select></div>
     <div><label>turn limit</label>
       <input type="number" id="g-ticks" value="20" min="5" max="60"></div>
   </div>
+  <p class="hint" id="g-modehint" style="margin-top:.5rem"></p>
 
   <div style="display:flex;gap:.6rem;margin-top:1rem;align-items:center">
     <button class="primary" id="g-start">⚔ Start game</button>
@@ -628,6 +629,21 @@ $("addseat").onclick = () => {
   if (n < 4) $("seats").appendChild(seatRow(n, TRIBES[n+2], "simple"));
 };
 
+const MODE_HINT = {
+  CONQUEST: "Last tribe standing wins — no turn limit. A tribe is knocked out when it loses all its cities. (Just like Domination in Polytopia.)",
+  CAPITALS: "Win by controlling every tribe's capital before the turn limit.",
+  SCORE: "Highest score when the turn limit is reached wins.",
+};
+function updateModeHint() {
+  const m = $("g-mode").value;
+  $("g-modehint").textContent = MODE_HINT[m] || "";
+  const conquest = m === "CONQUEST";
+  $("g-ticks").disabled = conquest;
+  $("g-ticks").parentElement.style.opacity = conquest ? ".45" : "1";
+}
+$("g-mode").addEventListener("change", updateModeHint);
+updateModeHint();
+
 $("g-start").onclick = async () => {
   const msg = $("g-msg");
   const rows = [...$("seats").children];
@@ -637,8 +653,9 @@ $("g-start").onclick = async () => {
     msg.className = "msg err"; msg.textContent = "each player needs a different tribe"; return;
   }
   const id = "g" + Date.now();
-  const req = {id, tribes, seats, mode: $("g-mode").value,
-               max_ticks: +$("g-ticks").value || 20, seed: Math.floor(Math.random() * 1e9)};
+  const mode = $("g-mode").value;
+  const req = {id, tribes, seats, mode, seed: Math.floor(Math.random() * 1e9)};
+  if (mode !== "CONQUEST") req.max_ticks = +$("g-ticks").value || 20;
   msg.className = "msg"; msg.textContent = "committing…";
   try {
     await ghPut(`polytopia-rl/control/requests/${id}.json`, req, `App: game request ${id}`);

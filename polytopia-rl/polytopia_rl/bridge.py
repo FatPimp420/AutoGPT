@@ -44,15 +44,27 @@ class TribesEnv:
     ACTION_FIELDS = 8
     SCALAR_FIELDS = 10
 
+    # CONQUEST = SCORE's last-tribe-standing rule with the turn limit lifted.
+    # A generous safety cap still applies so a stalemate can't run forever.
+    CONQUEST_CAP = 300
+
     def __init__(self, tribes=("XIN_XI", "IMPERIUS"), game_mode="CAPITALS",
                  bot_types=None, max_ticks=None):
         cls = start_jvm()
         self.runner = cls()
         self.tribes = list(tribes)
-        self.game_mode = game_mode
+        self.conquest = game_mode.upper() == "CONQUEST"
+        # The Java runner treats any non-CAPITALS mode as SCORE (which ends when
+        # only one tribe is un-eliminated) — exactly the Conquest rule.
+        self.game_mode = "CAPITALS" if game_mode.upper() == "CAPITALS" else "SCORE"
         self.bot_types = list(bot_types) if bot_types else [""] * len(tribes)
-        if max_ticks is not None and game_mode.upper() == "CAPITALS":
-            jpype.JClass("core.Constants").MAX_TURNS_CAPITALS = int(max_ticks)
+        C = jpype.JClass("core.Constants")
+        if self.conquest:
+            C.MAX_TURNS = int(max_ticks) if max_ticks else self.CONQUEST_CAP
+        elif self.game_mode == "SCORE":
+            C.MAX_TURNS = int(max_ticks) if max_ticks else 30
+        elif max_ticks is not None:  # CAPITALS
+            C.MAX_TURNS_CAPITALS = int(max_ticks)
         self.n_players = len(tribes)
         self.board_size = None
 

@@ -110,8 +110,9 @@ def build(cfg, net=None):
     """(Re)builds env/encoder/net/trainer for a config; keeps net if given."""
     env = TribesEnv(game_mode=cfg["mode"], max_ticks=cfg["max_ticks"])
     env.reset(1, 1)
-    max_ticks = cfg["max_ticks"] if cfg["mode"] == "CAPITALS" else 30
-    encoder = Encoder(env.type_sizes, env.board_size, max_ticks)
+    mode_u = cfg["mode"].upper()
+    horizon = cfg["max_ticks"] if mode_u in ("CAPITALS", "CONQUEST") else 30
+    encoder = Encoder(env.type_sizes, env.board_size, horizon)
     if net is None:
         net = PolicyValueNet(encoder.grid_channels, encoder.scalar_dim,
                              encoder.action_dim, env.board_size)

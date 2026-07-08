@@ -19,9 +19,16 @@ cp -r "$REPO"/polytopia-rl/. "$ROOT"/ 2>/dev/null || true
 echo "==> cloning Tribes if missing"
 [ -d "$ROOT/Tribes/src" ] || git clone -q https://github.com/GAIGResearch/Tribes.git "$ROOT/Tribes"
 
+echo "==> patching Tribes for CONQUEST mode (MAX_TURNS settable at runtime)"
+# The upstream MAX_TURNS is a compile-time final constant; CONQUEST needs to
+# raise it, so make it a mutable public static field. Idempotent.
+sed -i 's/^    static final int MAX_TURNS = 30;/    public static int MAX_TURNS = 30;/' \
+  "$ROOT/Tribes/src/core/Constants.java"
+
 echo "==> compiling Tribes + shim"
 cd "$ROOT/Tribes"
-[ -d out ] || { mkdir -p out; javac -cp lib/json.jar -d out $(find src -name '*.java') 2>/dev/null; }
+# Always rebuild so the CONQUEST patch (and any re-clone) is reflected.
+rm -rf out; mkdir -p out; javac -cp lib/json.jar -d out $(find src -name '*.java') 2>/dev/null
 mkdir -p "$ROOT/java/out"
 javac -cp out:lib/json.jar -d "$ROOT/java/out" "$ROOT/java/src/core/game/RLGameRunner.java"
 

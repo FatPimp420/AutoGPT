@@ -47,7 +47,8 @@ def main():
     seats = req["seats"]
     assert len(tribes) == len(seats) and 2 <= len(tribes) <= 4
     mode = req.get("mode", "CAPITALS")
-    max_ticks = int(req.get("max_ticks", 12))
+    conquest = mode.upper() == "CONQUEST"
+    max_ticks = int(req.get("max_ticks", 0)) or (TribesEnv.CONQUEST_CAP if conquest else 12)
     seed = int(req.get("seed") or time.time())
     rng = np.random.default_rng(seed)
 
@@ -56,8 +57,9 @@ def main():
                     max_ticks=max_ticks)
     env.runner.setAutoPlayBots(False)
     obs = env.reset(rng.integers(1 << 30), rng.integers(1 << 30))
-    encoder = Encoder(env.type_sizes, env.board_size,
-                      max_ticks if mode == "CAPITALS" else 30)
+    # tick-normalization horizon: real cap for CAPITALS/CONQUEST, else SCORE's 30
+    enc_horizon = max_ticks if mode.upper() in ("CAPITALS", "CONQUEST") else 30
+    encoder = Encoder(env.type_sizes, env.board_size, enc_horizon)
 
     net = None
     if any(s.startswith("policy") for s in seats):
