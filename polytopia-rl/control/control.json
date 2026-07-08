@@ -1,6 +1,6 @@
 {
   "mode": "CAPITALS",
-  "max_ticks": 50,
+  "max_ticks": 1000,
   "rollout_steps": 2048,
   "shaping_coef": 0.001,
   "win_reward": 1,
