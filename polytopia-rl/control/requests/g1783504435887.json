@@ -1,0 +1,18 @@
+{
+  "id": "g1783504435887",
+  "tribes": [
+    "LUXIDOOR",
+    "BARDUR",
+    "KICKOO",
+    "HOODRICK"
+  ],
+  "seats": [
+    "policy",
+    "policy-greedy",
+    "policy-greedy",
+    "policy-greedy"
+  ],
+  "mode": "CAPITALS",
+  "max_ticks": 1000,
+  "seed": 103404676
+}
