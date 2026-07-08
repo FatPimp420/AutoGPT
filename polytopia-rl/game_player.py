@@ -32,7 +32,7 @@ from polytopia_rl.model import PolicyValueNet
 from record_game import enum_names, action_text, snapshot
 
 ROOT = Path(__file__).resolve().parent
-BOT_SEATS = {"simple", "random", "donothing"}
+BOT_SEATS = {"simple", "random", "donothing", "osla", "mcts"}
 
 
 def main():
@@ -52,9 +52,15 @@ def main():
     seed = int(req.get("seed") or time.time())
     rng = np.random.default_rng(seed)
 
+    # The engine's default size table only covers up to 8 players; for larger
+    # games we must supply a size or level generation would go out of bounds.
+    map_size = int(req.get("map_size", 0))
+    if map_size == 0 and len(tribes) > 8:
+        map_size = 24 + 2 * (len(tribes) - 8)  # extend the real progression
+
     bot_types = [s if s in BOT_SEATS else "" for s in seats]
     env = TribesEnv(tribes=tribes, game_mode=mode, bot_types=bot_types,
-                    max_ticks=max_ticks)
+                    max_ticks=max_ticks, map_size=map_size)
     env.runner.setAutoPlayBots(False)
     obs = env.reset(rng.integers(1 << 30), rng.integers(1 << 30))
     # tick-normalization horizon: real cap for CAPITALS/CONQUEST, else SCORE's 30

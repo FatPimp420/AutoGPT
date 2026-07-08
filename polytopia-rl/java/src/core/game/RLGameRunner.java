@@ -23,6 +23,10 @@ import players.Agent;
 import players.DoNothingAgent;
 import players.RandomAgent;
 import players.SimpleAgent;
+import players.osla.OneStepLookAheadAgent;
+import players.osla.OSLAParams;
+import players.mcts.MCTSPlayer;
+import players.mcts.MCTSParams;
 import utils.ElapsedCpuTimer;
 import utils.Vector2d;
 
@@ -58,8 +62,10 @@ public class RLGameRunner {
     // drives them one action at a time via stepBot() so every action can be
     // observed (used for recorded exhibition games).
     private boolean autoPlayBots = true;
+    private int mapSizeOverride = 0;  // 0 = default per player count
 
     public void setAutoPlayBots(boolean auto) { this.autoPlayBots = auto; }
+    public void setMapSize(int s) { this.mapSizeOverride = s; }
 
     /** True if the active seat is a bot (only meaningful with autoplay off). */
     public boolean activeSeatIsBot() {
@@ -104,7 +110,7 @@ public class RLGameRunner {
             tribes[i] = Types.TRIBE.valueOf(tribeNames[i]);
 
         gs = new GameState(new Random(gameSeed), mode);
-        gs.init(levelSeed, tribes);
+        gs.init(levelSeed, tribes, mapSizeOverride);
         microSteps = 0;
 
         ArrayList<Integer> allIds = new ArrayList<>();
@@ -117,6 +123,20 @@ public class RLGameRunner {
                 case "random":    bots[i] = new RandomAgent(gameSeed + i); break;
                 case "simple":    bots[i] = new SimpleAgent(gameSeed + i); break;
                 case "donothing": bots[i] = new DoNothingAgent(gameSeed + i); break;
+                case "osla": {  // one-step lookahead — "Hard"
+                    OSLAParams op = new OSLAParams();
+                    op.stop_type = op.STOP_FMCALLS;
+                    op.heuristic_method = op.DIFF_HEURISTIC;
+                    bots[i] = new OneStepLookAheadAgent(gameSeed + i, op);
+                    break;
+                }
+                case "mcts": {  // Monte Carlo Tree Search — "Crazy"
+                    MCTSParams mp = new MCTSParams();
+                    mp.stop_type = mp.STOP_FMCALLS;
+                    mp.heuristic_method = mp.DIFF_HEURISTIC;
+                    bots[i] = new MCTSPlayer(gameSeed + i, mp);
+                    break;
+                }
                 default:          bots[i] = null;
             }
             if (bots[i] != null) bots[i].setPlayerIDs(i, allIds);

@@ -212,6 +212,9 @@ th { color: var(--muted); font-weight: 600; }
   <div class="card">
     <div id="seats"></div>
     <button id="addseat">+ Add player</button>
+    <p class="hint" style="margin-top:.5rem">Up to 12 players — this engine has the
+    12 regular tribes. The 4 DLC special tribes (Aquarion, Cymanti, Polaris,
+    Elyrion) aren't in it, so 15-opponent games aren't possible here.</p>
   </div>
 
   <h2>Match settings</h2>
@@ -220,6 +223,15 @@ th { color: var(--muted); font-weight: 600; }
       <select id="g-mode"><option>CONQUEST</option><option>CAPITALS</option><option>SCORE</option></select></div>
     <div><label>turn limit</label>
       <input type="number" id="g-ticks" value="20" min="5" max="60"></div>
+    <div class="wide"><label>map size</label>
+      <select id="g-mapsize">
+        <option value="0">Default (scales with players)</option>
+        <option value="11">Small · 11×11</option>
+        <option value="14">Normal · 14×14</option>
+        <option value="18">Large · 18×18</option>
+        <option value="24">Huge · 24×24</option>
+        <option value="30">Massive · 30×30 (900 tiles)</option>
+      </select></div>
   </div>
   <p class="hint" id="g-modehint" style="margin-top:.5rem"></p>
 
@@ -296,7 +308,9 @@ const TRIBE_LABEL = {XIN_XI:"Xin-Xi", IMPERIUS:"Imperius", BARDUR:"Bardur",
   VENGIR:"Vengir", ZEBASI:"Zebasi", AI_MO:"Aï-Mo", QUETZALI:"Quetzali",
   YADAKK:"Yădakk"};
 const CONTROLLERS = [["policy","Trained AI"], ["policy-greedy","Trained AI (best move)"],
-  ["simple","Rule-based bot"], ["random","Random bot"], ["donothing","Do nothing"]];
+  ["mcts","Bot · Crazy (MCTS)"], ["osla","Bot · Hard (lookahead)"],
+  ["simple","Bot · Normal (rules)"], ["random","Bot · Easy (random)"],
+  ["donothing","Bot · passive"]];
 const PC = ["#d64545", "#4a7bd4", "#3f9c5a", "#c78f2f"];
 const RULE_KEYS = ["mode","max_ticks","rollout_steps","shaping_coef",
   "win_reward","lr","ent_coef","paused","note"];
@@ -622,11 +636,17 @@ function seatRow(i, tribe, ctrl) {
   d.querySelector(".s-del").onclick = () => { if ($("seats").children.length > 2) d.remove(); };
   return d;
 }
+function firstUnusedTribe() {
+  const used = new Set([...$("seats").querySelectorAll(".s-tribe")].map(s => s.value));
+  return TRIBES.find(t => !used.has(t)) || TRIBES[0];
+}
 $("seats").appendChild(seatRow(0, "XIN_XI", "policy"));
-$("seats").appendChild(seatRow(1, "BARDUR", "policy"));
+$("seats").appendChild(seatRow(1, "IMPERIUS", "policy"));
+const MAX_PLAYERS = 12;  // engine has 12 tribes; no DLC tribes exist
 $("addseat").onclick = () => {
   const n = $("seats").children.length;
-  if (n < 4) $("seats").appendChild(seatRow(n, TRIBES[n+2], "simple"));
+  if (n < MAX_PLAYERS) $("seats").appendChild(seatRow(n, firstUnusedTribe(), "simple"));
+  $("addseat").disabled = $("seats").children.length >= MAX_PLAYERS;
 };
 
 const MODE_HINT = {
@@ -656,6 +676,8 @@ $("g-start").onclick = async () => {
   const mode = $("g-mode").value;
   const req = {id, tribes, seats, mode, seed: Math.floor(Math.random() * 1e9)};
   if (mode !== "CONQUEST") req.max_ticks = +$("g-ticks").value || 20;
+  const ms = +$("g-mapsize").value;
+  if (ms) req.map_size = ms;
   msg.className = "msg"; msg.textContent = "committing…";
   try {
     await ghPut(`polytopia-rl/control/requests/${id}.json`, req, `App: game request ${id}`);

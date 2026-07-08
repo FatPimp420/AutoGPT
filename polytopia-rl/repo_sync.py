@@ -117,7 +117,7 @@ def process_request(name, log=print):
     r = subprocess.run(
         [str(ROOT / ".venv/bin/python"), str(ROOT / "game_player.py"),
          "--request", str(req_file), "--out", str(out)],
-        capture_output=True, text=True, timeout=600, cwd=str(ROOT))
+        capture_output=True, text=True, timeout=1800, cwd=str(ROOT))
     req_file.unlink(missing_ok=True)
     if r.returncode != 0 or not out.exists():
         log(f"game request {rid} FAILED: {r.stderr[-400:]}")

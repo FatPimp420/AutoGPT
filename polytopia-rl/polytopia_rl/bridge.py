@@ -49,9 +49,11 @@ class TribesEnv:
     CONQUEST_CAP = 300
 
     def __init__(self, tribes=("XIN_XI", "IMPERIUS"), game_mode="CAPITALS",
-                 bot_types=None, max_ticks=None):
+                 bot_types=None, max_ticks=None, map_size=0):
         cls = start_jvm()
         self.runner = cls()
+        if map_size:  # 0 = Polytopia's default size for the player count
+            self.runner.setMapSize(int(map_size))
         self.tribes = list(tribes)
         self.conquest = game_mode.upper() == "CONQUEST"
         # The Java runner treats any non-CAPITALS mode as SCORE (which ends when
