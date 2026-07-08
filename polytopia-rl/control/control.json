@@ -1,11 +1,1 @@
-{
-  "mode": "CONQUEST",
-  "max_ticks": 1000,
-  "rollout_steps": 2048,
-  "shaping_coef": 0.001,
-  "win_reward": 1,
-  "lr": 0.0003,
-  "ent_coef": 0.01,
-  "paused": false,
-  "note": "default rules"
-}
+{"mode":"CAPITALS","max_ticks":12,"rollout_steps":2048,"shaping_coef":0.001,"win_reward":1.0,"lr":0.0003,"ent_coef":0.01,"paused":false,"note":"recovered — back to 12-tick games"}
