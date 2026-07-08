@@ -114,10 +114,21 @@ def process_request(name, log=print):
     games_dir.mkdir(parents=True, exist_ok=True)
     out = games_dir / f"{rid}.json"
 
-    r = subprocess.run(
-        [str(ROOT / ".venv/bin/python"), str(ROOT / "game_player.py"),
-         "--request", str(req_file), "--out", str(out)],
-        capture_output=True, text=True, timeout=1800, cwd=str(ROOT))
+    try:
+        r = subprocess.run(
+            [str(ROOT / ".venv/bin/python"), str(ROOT / "game_player.py"),
+             "--request", str(req_file), "--out", str(out)],
+            capture_output=True, text=True, timeout=1800, cwd=str(ROOT))
+    except subprocess.TimeoutExpired:
+        # A too-heavy game (e.g. MCTS on a Massive Conquest map) can exceed the
+        # guard. Mark it done so it is not retried forever, and surface the
+        # reason to the app instead of silently blocking training each cycle.
+        req_file.unlink(missing_ok=True)
+        log(f"game request {rid} TIMED OUT (>1800s); marking done")
+        _mark_processed(name)
+        _publish_index_entry({"id": rid, "error": "too slow to finish (timed out)",
+                              "tribes": req.get("tribes"), "t": time.time()})
+        return False
     req_file.unlink(missing_ok=True)
     if r.returncode != 0 or not out.exists():
         log(f"game request {rid} FAILED: {r.stderr[-400:]}")
