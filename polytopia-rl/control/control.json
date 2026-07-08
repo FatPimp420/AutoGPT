@@ -1,0 +1,11 @@
+{
+  "mode": "CAPITALS",
+  "max_ticks": 100,
+  "rollout_steps": 2048,
+  "shaping_coef": 0.001,
+  "win_reward": 1,
+  "lr": 0.0003,
+  "ent_coef": 0.01,
+  "paused": false,
+  "note": "default rules"
+}
