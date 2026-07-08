@@ -1,6 +1,6 @@
-/* Offline shell + cached last training data. */
-const SHELL = "tribes-shell-v1";
-const DATA = "tribes-data-v1";
+/* Offline shell + cached last training/game data. */
+const SHELL = "tribes-shell-v2";
+const DATA = "tribes-data-v2";
 const SHELL_FILES = ["./", "index.html", "manifest.webmanifest",
   "icon-192.png", "icon-512.png", "apple-touch-icon.png"];
 
@@ -17,8 +17,9 @@ self.addEventListener("activate", e => {
 
 self.addEventListener("fetch", e => {
   const url = new URL(e.request.url);
-  if (url.pathname.endsWith("/data/data.json")) {
-    // network-first: fresh data when online, last synced state when not
+  // Everything under data/ (training payload, game replays, index) is
+  // network-first: fresh when online, last-synced copy when offline.
+  if (url.pathname.includes("/data/")) {
     e.respondWith(
       fetch(e.request).then(r => {
         const copy = r.clone();
@@ -27,7 +28,7 @@ self.addEventListener("fetch", e => {
       }).catch(() => caches.match(e.request))
     );
   } else {
-    // cache-first shell with background refresh
+    // cache-first app shell with background refresh
     e.respondWith(
       caches.match(e.request).then(hit => {
         const fresh = fetch(e.request).then(r => {

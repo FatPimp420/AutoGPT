@@ -54,6 +54,36 @@ public class RLGameRunner {
     private Agent[] bots; // null entry = externally controlled player
     private ArrayList<Action> legal = new ArrayList<>();
     private int microSteps;
+    // When false, bot seats do not auto-play inside reset()/step(); the caller
+    // drives them one action at a time via stepBot() so every action can be
+    // observed (used for recorded exhibition games).
+    private boolean autoPlayBots = true;
+
+    public void setAutoPlayBots(boolean auto) { this.autoPlayBots = auto; }
+
+    /** True if the active seat is a bot (only meaningful with autoplay off). */
+    public boolean activeSeatIsBot() {
+        return !gs.isGameOver() && bots[gs.getActiveTribeID()] != null;
+    }
+
+    /** Plays ONE action chosen by the active seat's bot agent.
+     *  Returns the played action's ACTION_FIELDS descriptor. */
+    public int[] stepBot() {
+        int[] desc = new int[ACTION_FIELDS];
+        java.util.Arrays.fill(desc, -1);
+        if (gs.isGameOver() || bots[gs.getActiveTribeID()] == null) return desc;
+        int botId = gs.getActiveTribeID();
+        ElapsedCpuTimer ect = new ElapsedCpuTimer();
+        ect.setMaxTimeMillis(1000);
+        gs.computePlayerActions(gs.getActiveTribe());
+        Action a = gs.getAllAvailableActions().isEmpty() ? null
+                : bots[botId].act(gs.copy(botId), ect);
+        if (a == null) a = new EndTurn(botId);
+        encodeAction(a, desc, 0);
+        applyAction(a);
+        refreshLegal();
+        return desc;
+    }
 
     /**
      * Starts a fresh game on a generated level.
@@ -96,7 +126,7 @@ public class RLGameRunner {
         gs.initTurn(first);
         gs.computePlayerActions(first);
 
-        autoPlayBots();
+        if (autoPlayBots) autoPlayBots();
         refreshLegal();
     }
 
@@ -105,7 +135,7 @@ public class RLGameRunner {
         if (gs.isGameOver()) return;
         Action a = legal.get(idx);
         applyAction(a);
-        autoPlayBots();
+        if (autoPlayBots) autoPlayBots();
         refreshLegal();
     }
 
@@ -268,7 +298,14 @@ public class RLGameRunner {
         for (int i = 0; i < legal.size(); i++) {
             int o = i * ACTION_FIELDS;
             for (int j = 0; j < ACTION_FIELDS; j++) out[o + j] = -1;
-            Action a = legal.get(i);
+            encodeAction(legal.get(i), out, o);
+        }
+        return out;
+    }
+
+    /** Writes one action's descriptor into out[o..o+ACTION_FIELDS). */
+    private void encodeAction(Action a, int[] out, int o) {
+        {
             out[o] = a.getActionType().ordinal();
 
             if (a instanceof UnitAction) {
@@ -313,6 +350,5 @@ public class RLGameRunner {
                 }
             }
         }
-        return out;
     }
 }

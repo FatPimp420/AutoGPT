@@ -31,6 +31,8 @@ from pathlib import Path
 import numpy as np
 import torch
 
+import repo_sync
+from build_dashboard import build_payload
 from polytopia_rl.bridge import TribesEnv
 from polytopia_rl.encoder import Encoder
 from polytopia_rl.model import PolicyValueNet
@@ -129,10 +131,30 @@ def save_ckpt(net, encoder, env, it):
                            "board_size": env.board_size}}, CKPT)
 
 
+def repo_tick(log):
+    """Inbound sync: apply app-committed rule changes, play requested games."""
+    try:
+        repo_sync.fetch()
+        if repo_sync.sync_control():
+            log_line("events.jsonl", {"t": time.time(),
+                                      "event": "rules changed from app"})
+            log("control.json updated from repo")
+        for name in repo_sync.pending_requests():
+            log(f"playing requested game {name}")
+            repo_sync.process_request(name, log=log)
+    except Exception as e:  # sync must never kill training
+        log(f"repo sync error: {e}")
+
+
 def main():
     RUNS.mkdir(exist_ok=True)
     torch.manual_seed(0)
     rng = np.random.default_rng(int(time.time()))
+    try:
+        repo_sync.ensure_ghp()
+    except Exception as e:
+        print(f"ghp worktree setup failed (will retry on publish): {e}")
+    last_sync = 0.0
 
     cfg = read_control()
     env, encoder, net, trainer = build(cfg)
@@ -144,6 +166,10 @@ def main():
     print(f"daemon up at iteration {it}, config: {cfg}")
 
     while True:
+        if time.time() - last_sync > 40:
+            repo_tick(print)
+            last_sync = time.time()
+
         new_cfg = read_control()
         if new_cfg != cfg:
             changed = {k: v for k, v in new_cfg.items() if cfg.get(k) != v}
@@ -199,8 +225,15 @@ def main():
             except Exception as e:  # replay is cosmetic; never kill training for it
                 log_line("events.jsonl", {"t": time.time(),
                                           "event": f"replay failed: {e}"})
+            repo_sync.push_checkpoint(CKPT, it)  # durable across rollbacks
         if it % PUBLISH_EVERY == 0:
             log_line("publish.log", {"t": time.time(), "iteration": it})
+            try:
+                repo_sync.publish_data(build_payload())
+                print(f"published data.json at iter {it}")
+            except Exception as e:
+                log_line("events.jsonl", {"t": time.time(),
+                                          "event": f"publish failed: {e}"})
 
 
 if __name__ == "__main__":
