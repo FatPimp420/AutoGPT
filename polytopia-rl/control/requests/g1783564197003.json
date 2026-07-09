@@ -1,0 +1,24 @@
+{
+  "id": "g1783564197003",
+  "tribes": [
+    "XIN_XI",
+    "IMPERIUS",
+    "BARDUR",
+    "OUMAJI",
+    "KICKOO",
+    "HOODRICK",
+    "LUXIDOOR"
+  ],
+  "seats": [
+    "policy",
+    "policy-greedy",
+    "simple",
+    "simple",
+    "simple",
+    "simple",
+    "simple"
+  ],
+  "mode": "CONQUEST",
+  "seed": 746944516,
+  "map_size": 30
+}
