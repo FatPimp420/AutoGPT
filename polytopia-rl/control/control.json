@@ -5,7 +5,7 @@
   "shaping_coef": 0.001,
   "win_reward": 1,
   "lr": 0.0003,
-  "ent_coef": 0.01,
+  "ent_coef": 0.02,
   "paused": false,
   "note": "recovered — back to 12-tick games"
 }
