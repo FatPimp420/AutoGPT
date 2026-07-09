@@ -1,0 +1,8 @@
+{
+  "id": "gverify-bg",
+  "tribes": ["XIN_XI","IMPERIUS","BARDUR","OUMAJI"],
+  "seats": ["policy","policy-greedy","simple","simple"],
+  "mode": "CAPITALS",
+  "max_ticks": 12,
+  "seed": 99
+}
