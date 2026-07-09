@@ -103,8 +103,13 @@ def _push_ghp(message):
     return False
 
 
-def process_request(name, log=print):
-    """Plays one requested game in a subprocess and publishes the replay."""
+GAME_HARD_CAP = 1200   # seconds; kill a background game that runs longer
+
+
+def start_request(name, log=print):
+    """Launches one requested game as a background subprocess (non-blocking) so
+    it never stalls the training loop. Returns a job dict to poll with
+    poll_job()."""
     content = _git("show", f"{REQ_DIR_REF}/{name}", check=True).stdout
     req = json.loads(content)
     rid = str(req.get("id") or Path(name).stem)
@@ -113,40 +118,57 @@ def process_request(name, log=print):
     games_dir = GHP / "data" / "games"
     games_dir.mkdir(parents=True, exist_ok=True)
     out = games_dir / f"{rid}.json"
+    logf = open(RUNS / f"game_{rid}.log", "w")
+    proc = subprocess.Popen(
+        [str(ROOT / ".venv/bin/python"), str(ROOT / "game_player.py"),
+         "--request", str(req_file), "--out", str(out)],
+        stdout=logf, stderr=subprocess.STDOUT, cwd=str(ROOT))
+    log(f"started requested game {rid} in background (pid {proc.pid})")
+    return {"name": name, "rid": rid, "proc": proc, "out": out, "logf": logf,
+            "req_file": req_file, "req": req, "started": time.time()}
 
-    try:
-        r = subprocess.run(
-            [str(ROOT / ".venv/bin/python"), str(ROOT / "game_player.py"),
-             "--request", str(req_file), "--out", str(out)],
-            capture_output=True, text=True, timeout=1800, cwd=str(ROOT))
-    except subprocess.TimeoutExpired:
-        # A too-heavy game (e.g. MCTS on a Massive Conquest map) can exceed the
-        # guard. Mark it done so it is not retried forever, and surface the
-        # reason to the app instead of silently blocking training each cycle.
-        req_file.unlink(missing_ok=True)
-        log(f"game request {rid} TIMED OUT (>1800s); marking done")
-        _mark_processed(name)
-        _publish_index_entry({"id": rid, "error": "too slow to finish (timed out)",
-                              "tribes": req.get("tribes"), "t": time.time()})
-        return False
-    req_file.unlink(missing_ok=True)
-    if r.returncode != 0 or not out.exists():
-        log(f"game request {rid} FAILED: {r.stderr[-400:]}")
-        _mark_processed(name)      # don't retry a poisoned request forever
-        _publish_index_entry({"id": rid, "error": "failed to play",
-                              "tribes": req.get("tribes"), "t": time.time()})
-        return False
 
-    replay = json.loads(out.read_text())
-    _publish_index_entry({
+def poll_job(job, log=print):
+    """Checks a running game job. Returns True once it is finished (and its
+    result/failure has been published + marked processed)."""
+    proc, rid = job["proc"], job["rid"]
+    if proc.poll() is None:                       # still running
+        if time.time() - job["started"] > GAME_HARD_CAP:
+            proc.kill(); proc.wait()
+            _finish_job(job, error="too slow to finish (timed out)",
+                        log=log, verb="killed (exceeded cap)")
+            return True
+        return False
+    if proc.returncode != 0 or not job["out"].exists():
+        tail = ""
+        try:
+            tail = Path(RUNS / f"game_{rid}.log").read_text()[-400:]
+        except OSError:
+            pass
+        _finish_job(job, error="failed to play", log=log,
+                    verb=f"FAILED: {tail}")
+        return True
+    replay = json.loads(job["out"].read_text())
+    _finish_job(job, entry={
         "id": rid, "t": time.time(),
         "tribes": replay["tribes"], "seats": replay["seats"],
         "mode": replay["mode"], "result": replay["result"],
-        "frames": len(replay["frames"]),
-    })
-    _mark_processed(name)
-    log(f"game request {rid} played and published")
+        "frames": len(replay["frames"])}, log=log, verb="played and published")
     return True
+
+
+def _finish_job(job, entry=None, error=None, log=print, verb=""):
+    try:
+        job["logf"].close()
+    except Exception:
+        pass
+    job["req_file"].unlink(missing_ok=True)
+    if entry is None:
+        entry = {"id": job["rid"], "error": error,
+                 "tribes": job["req"].get("tribes"), "t": time.time()}
+    _mark_processed(job["name"])
+    _publish_index_entry(entry)
+    log(f"game request {job['rid']} {verb}")
 
 
 def _publish_index_entry(entry):

@@ -133,17 +133,26 @@ def save_ckpt(net, encoder, env, it):
                            "board_size": env.board_size}}, CKPT)
 
 
-def repo_tick(log):
-    """Inbound sync: apply app-committed rule changes, play requested games."""
+def repo_tick(jobs, log):
+    """Inbound sync: apply app-committed rule changes, and drive requested games
+    as background subprocesses so a slow game never stalls training. `jobs` is a
+    mutable list of in-flight game jobs, updated in place."""
     try:
         repo_sync.fetch()
         if repo_sync.sync_control():
             log_line("events.jsonl", {"t": time.time(),
                                       "event": "rules changed from app"})
             log("control.json updated from repo")
-        for name in repo_sync.pending_requests():
-            log(f"playing requested game {name}")
-            repo_sync.process_request(name, log=log)
+        # poll running games; keep only the unfinished ones
+        jobs[:] = [j for j in jobs if not repo_sync.poll_job(j, log=log)]
+        # start at most one new game at a time (bounds CPU contention w/ training)
+        if not jobs:
+            running = {j["name"] for j in jobs}
+            for name in repo_sync.pending_requests():
+                if name in running:
+                    continue
+                jobs.append(repo_sync.start_request(name, log=log))
+                break
     except Exception as e:  # sync must never kill training
         log(f"repo sync error: {e}")
 
@@ -158,6 +167,7 @@ def main():
         print(f"ghp worktree setup failed (will retry on publish): {e}")
     last_sync = 0.0
     last_publish = 0.0   # publish once promptly after startup, then every interval
+    jobs = []            # in-flight background game requests
 
     cfg = read_control()
     env, encoder, net, trainer = build(cfg)
@@ -170,7 +180,7 @@ def main():
 
     while True:
         if time.time() - last_sync > 40:
-            repo_tick(print)
+            repo_tick(jobs, print)
             last_sync = time.time()
 
         new_cfg = read_control()
