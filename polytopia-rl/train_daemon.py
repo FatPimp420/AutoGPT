@@ -49,6 +49,7 @@ PUBLISH_EVERY_SEC = 240  # wall-clock seconds between dashboard publishes
 DEFAULT_CONTROL = {
     "paused": False, "mode": "CAPITALS", "max_ticks": 12, "rollout_steps": 2048,
     "shaping_coef": 1e-3, "win_reward": 1.0, "lr": 3e-4, "ent_coef": 0.01,
+    "capture_reward": 0.0, "kill_reward": 0.0,
     "note": "default rules",
 }
 ENV_KEYS = ("mode", "max_ticks")
@@ -157,8 +158,17 @@ def repo_tick(jobs, log):
         log(f"repo sync error: {e}")
 
 
+def _kill_stray_games():
+    """A previous daemon's background games are orphaned across a restart and
+    would be re-launched as duplicates. Clear them before we start."""
+    import subprocess
+    subprocess.run(["pkill", "-9", "-f", "game_player.py"],
+                   capture_output=True)
+
+
 def main():
     RUNS.mkdir(exist_ok=True)
+    _kill_stray_games()
     torch.manual_seed(0)
     rng = np.random.default_rng(int(time.time()))
     try:
@@ -206,7 +216,8 @@ def main():
         trajs, games, steps = [], [], 0
         while steps < cfg["rollout_steps"]:
             game_trajs, info = play_selfplay_game(
-                env, encoder, net, rng, cfg["shaping_coef"], cfg["win_reward"])
+                env, encoder, net, rng, cfg["shaping_coef"], cfg["win_reward"],
+                cfg.get("capture_reward", 0.0), cfg.get("kill_reward", 0.0))
             trajs.extend(game_trajs)
             games.append(info)
             steps += info["steps"]

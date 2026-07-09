@@ -48,8 +48,12 @@ def build_payload():
         replay = None
 
     ds = downsample(metrics, MAX_POINTS)
-    keys = ("iter", "entropy", "value_loss", "mean_score", "mean_len")
-    series = {k: [m[k] for m in ds] for k in keys}
+    # original curves plus the richer per-game outcome stats (missing on rows
+    # logged before this feature -> None, which the chart skips)
+    keys = ("iter", "entropy", "value_loss", "mean_score", "mean_len",
+            "win_rate", "map_control", "cities", "techs", "kills", "stars",
+            "stars_gen", "elims", "first_capture", "first_elim")
+    series = {k: [m.get(k) for m in ds] for k in keys}
     totals = {
         "iterations": metrics[-1]["iter"] if metrics else 0,
         "games": sum(m["games"] for m in metrics),
@@ -64,7 +68,9 @@ def build_payload():
         keep = [i for i, it in enumerate(hist["series"]["iter"]) if it < first]
         idx = downsample(keep, MAX_POINTS - len(series["iter"]) if metrics else MAX_POINTS)
         for k in keys:
-            series[k] = [hist["series"][k][i] for i in idx] + series[k]
+            hs = hist["series"].get(k)  # keys absent from older history -> pad None
+            prefix = [hs[i] for i in idx] if hs else [None] * len(idx)
+            series[k] = prefix + series[k]
         totals["iterations"] = max(totals["iterations"], hist["totals"]["iterations"])
         totals["games"] += hist["totals"]["games"]
         totals["steps"] += hist["totals"]["steps"]

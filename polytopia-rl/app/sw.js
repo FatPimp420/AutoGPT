@@ -2,8 +2,8 @@
  * v3: the app SHELL (HTML) is now network-first so a redeploy shows up
  * immediately when online, instead of being pinned to a cached old page.
  * Static assets stay cache-first; data/ stays network-first. */
-const SHELL = "tribes-shell-v3";
-const DATA = "tribes-data-v3";
+const SHELL = "tribes-shell-v4";
+const DATA = "tribes-data-v4";
 const SHELL_FILES = ["./", "index.html", "manifest.webmanifest",
   "icon-192.png", "icon-512.png", "apple-touch-icon.png"];
 

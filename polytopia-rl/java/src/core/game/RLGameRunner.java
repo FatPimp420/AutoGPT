@@ -277,6 +277,24 @@ public class RLGameRunner {
         return new int[]{totalCities, alive, totalStars};
     }
 
+    /**
+     * Cheap per-player event counts for reward shaping, flattened as
+     * [cities, kills, alive(1/0)] per player. No board scan.
+     */
+    public int[] getPlayerCounts() {
+        Tribe[] tribes = gs.getTribes();
+        int[] out = new int[tribes.length * 3];
+        for (int i = 0; i < tribes.length; i++) {
+            Tribe t = tribes[i];
+            int cities = t.getNumCities();
+            int units = gs.getUnits(t.getTribeId()).size();
+            out[i * 3]     = cities;
+            out[i * 3 + 1] = t.getnKills();
+            out[i * 3 + 2] = (cities > 0 || units > 0) ? 1 : 0;
+        }
+        return out;
+    }
+
     public static int numTerrainTypes()  { return Types.TERRAIN.values().length; }
     public static int numResourceTypes() { return Types.RESOURCE.values().length; }
     public static int numBuildingTypes() { return Types.BUILDING.values().length; }

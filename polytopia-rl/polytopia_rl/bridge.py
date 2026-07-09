@@ -106,6 +106,11 @@ class TribesEnv:
         vals = [int(v) for v in self.runner.getPlayerStats(int(pid))]
         return dict(zip(self.PSTAT, vals))
 
+    def player_counts(self):
+        """Cheap per-player [cities, kills, alive] rows for reward shaping."""
+        flat = [int(v) for v in self.runner.getPlayerCounts()]
+        return [flat[i:i + 3] for i in range(0, len(flat), 3)]
+
     def _observe(self):
         r = self.runner
         done = bool(r.isGameOver())

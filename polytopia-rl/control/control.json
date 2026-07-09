@@ -7,5 +7,7 @@
   "lr": 0.0003,
   "ent_coef": 0.02,
   "paused": false,
-  "note": "recovered — back to 12-tick games"
+  "note": "event rewards on: capture 0.3, kill 0.02",
+  "capture_reward": 0.3,
+  "kill_reward": 0.02
 }

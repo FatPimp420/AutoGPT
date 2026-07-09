@@ -23,8 +23,13 @@ from polytopia_rl.ppo import PPOTrainer, Step, Trajectory
 ROOT = Path(__file__).resolve().parent
 
 
-def play_selfplay_game(env, encoder, net, rng, shaping_coef, win_reward):
-    """Plays one self-play game; returns (per-player trajectories, game info)."""
+def play_selfplay_game(env, encoder, net, rng, shaping_coef, win_reward,
+                       capture_reward=0.0, kill_reward=0.0):
+    """Plays one self-play game; returns (per-player trajectories, game info).
+
+    Reward = terminal win/loss (win_reward) + dense score-diff shaping
+    (shaping_coef) + per-event bonuses for gaining a city (capture_reward, also
+    penalising a lost city) and for unit kills (kill_reward)."""
     obs = env.reset(rng.integers(1 << 30), rng.integers(1 << 30))
     n = env.n_players
     trajs = {p: Trajectory() for p in range(n)}
@@ -35,6 +40,8 @@ def play_selfplay_game(env, encoder, net, rng, shaping_coef, win_reward):
     first_capture, first_elim = -1, -1        # tick of first city gain / elimination
     _, _, prev_stars = env.tick_stats()
     stars_gen = 0                             # total stars earned across seats (proxy)
+    prev_counts = env.player_counts()         # [cities, kills, alive] per player
+    event_shaping = capture_reward or kill_reward
     prev_tick = obs["tick"]
 
     while not obs["done"]:
@@ -59,6 +66,16 @@ def play_selfplay_game(env, encoder, net, rng, shaping_coef, win_reward):
                 first_capture = prev_tick
             if first_elim < 0 and alive < n:
                 first_elim = prev_tick
+            if event_shaping:  # attribute city/kill deltas to each seat's last action
+                counts = env.player_counts()
+                for q in range(n):
+                    if not trajs[q].steps:
+                        continue
+                    d_city = counts[q][0] - prev_counts[q][0]
+                    d_kill = counts[q][1] - prev_counts[q][1]
+                    trajs[q].steps[-1].reward += (capture_reward * d_city
+                                                  + kill_reward * d_kill)
+                prev_counts = counts
 
     for p in range(n):
         if trajs[p].steps:
