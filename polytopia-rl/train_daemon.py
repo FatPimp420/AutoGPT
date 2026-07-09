@@ -43,7 +43,8 @@ ROOT = Path(__file__).resolve().parent
 RUNS = ROOT / "runs"
 CKPT = ROOT / "checkpoints" / "policy.pt"
 SAVE_EVERY = 25          # iterations between checkpoint + replay refresh
-PUBLISH_EVERY = 150      # iterations between dashboard publish requests
+PUBLISH_EVERY_SEC = 240  # wall-clock seconds between dashboard publishes
+                         # (time-based so slow modes still refresh promptly)
 
 DEFAULT_CONTROL = {
     "paused": False, "mode": "CAPITALS", "max_ticks": 12, "rollout_steps": 2048,
@@ -156,6 +157,7 @@ def main():
     except Exception as e:
         print(f"ghp worktree setup failed (will retry on publish): {e}")
     last_sync = 0.0
+    last_publish = 0.0   # publish once promptly after startup, then every interval
 
     cfg = read_control()
     env, encoder, net, trainer = build(cfg)
@@ -227,7 +229,8 @@ def main():
                 log_line("events.jsonl", {"t": time.time(),
                                           "event": f"replay failed: {e}"})
             repo_sync.push_checkpoint(CKPT, it)  # durable across rollbacks
-        if it % PUBLISH_EVERY == 0:
+        if time.time() - last_publish > PUBLISH_EVERY_SEC:
+            last_publish = time.time()
             try:
                 ok = repo_sync.publish_data(build_payload())
                 if ok:  # only log a publish that actually reached the remote
