@@ -46,7 +46,7 @@ def main():
     req = json.loads(Path(args.request).read_text())
     tribes = req["tribes"]
     seats = req["seats"]
-    assert len(tribes) == len(seats) and 2 <= len(tribes) <= 4
+    assert len(tribes) == len(seats) and 2 <= len(tribes) <= 12
     mode = req.get("mode", "CAPITALS")
     conquest = mode.upper() == "CONQUEST"
     max_ticks = int(req.get("max_ticks", 0)) or (TribesEnv.CONQUEST_CAP if conquest else 12)
