@@ -1,0 +1,17 @@
+{
+  "id": "g1783568020946",
+  "tribes": [
+    "XIN_XI",
+    "IMPERIUS",
+    "BARDUR",
+    "OUMAJI"
+  ],
+  "seats": [
+    "policy",
+    "policy-greedy",
+    "simple",
+    "simple"
+  ],
+  "mode": "CONQUEST",
+  "seed": 322453103
+}
