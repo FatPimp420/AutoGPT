@@ -235,6 +235,48 @@ public class RLGameRunner {
         return 0;
     }
 
+    /**
+     * Per-player end/summary stats:
+     * {stars, score, numCities, numUnits, numTechs, nKills, tilesOwned,
+     *  controlsCapital(1/0), alive(1/0)}.
+     * tilesOwned scans the board's city borders, so call sparingly (game end).
+     */
+    public int[] getPlayerStats(int playerId) {
+        Tribe me = gs.getTribe(playerId);
+        int nTechs = 0;
+        for (Types.TECHNOLOGY tech : Types.TECHNOLOGY.values())
+            if (me.getTechTree().isResearched(tech)) nTechs++;
+        int nUnits = gs.getUnits(playerId).size();
+        Board b = gs.getBoard();
+        int n = b.getSize(), tiles = 0;
+        for (int x = 0; x < n; x++)
+            for (int y = 0; y < n; y++) {
+                City c = b.getCityInBorders(x, y);
+                if (c != null && c.getTribeId() == playerId) tiles++;
+            }
+        boolean alive = me.getNumCities() > 0 || nUnits > 0;
+        return new int[]{
+                me.getStars(), me.getScore(), me.getNumCities(), nUnits, nTechs,
+                me.getnKills(), tiles, me.controlsCapital() ? 1 : 0, alive ? 1 : 0
+        };
+    }
+
+    /**
+     * Cheap per-turn aggregate stats for tracking game progression:
+     * {totalCities, aliveTribes, totalStars} summed across all tribes.
+     * No board scan, so safe to sample every tick.
+     */
+    public int[] getTickStats() {
+        int totalCities = 0, alive = 0, totalStars = 0;
+        for (Tribe t : gs.getTribes()) {
+            int cities = t.getNumCities();
+            totalCities += cities;
+            totalStars += t.getStars();
+            if (cities > 0 || gs.getUnits(t.getTribeId()).size() > 0) alive++;
+        }
+        return new int[]{totalCities, alive, totalStars};
+    }
+
     public static int numTerrainTypes()  { return Types.TERRAIN.values().length; }
     public static int numResourceTypes() { return Types.RESOURCE.values().length; }
     public static int numBuildingTypes() { return Types.BUILDING.values().length; }

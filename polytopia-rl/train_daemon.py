@@ -213,6 +213,10 @@ def main():
         stats = trainer.update(trajs)
         it += 1
 
+        def _mean(key, cond=None):
+            vals = [g[key] for g in games if cond is None or cond(g[key])]
+            return round(float(np.mean(vals)), 2) if vals else -1
+
         row = {
             "iter": it, "t": time.time(), "games": len(games), "steps": steps,
             "decided": sum(1 for g in games if 1 in g["win"]),
@@ -225,6 +229,17 @@ def main():
             "clip_frac": round(stats["clip_frac"], 4),
             "iter_s": round(time.time() - t0, 1),
             "mode": cfg["mode"], "max_ticks": cfg["max_ticks"],
+            # per-game outcome stats (winner-centric; win_rate = fraction decisive)
+            "win_rate": round(float(np.mean([g["decisive"] for g in games])), 3),
+            "map_control": _mean("map_control"),
+            "cities": _mean("winner_cities"),
+            "techs": _mean("winner_techs"),
+            "kills": _mean("winner_kills"),
+            "stars": _mean("winner_stars"),
+            "stars_gen": _mean("stars_gen"),
+            "elims": _mean("elims"),
+            "first_capture": _mean("first_capture", lambda v: v >= 0),
+            "first_elim": _mean("first_elim", lambda v: v >= 0),
         }
         log_line("metrics.jsonl", row)
         write_status("training", it, cfg, {"last_iter": row})

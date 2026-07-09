@@ -93,6 +93,19 @@ class TribesEnv:
         self.runner.step(int(action_idx))
         return self._observe()
 
+    # Progression stats (see RLGameRunner.getTickStats / getPlayerStats).
+    def tick_stats(self):
+        """Cheap per-turn aggregates: (total_cities, alive_tribes, total_stars)."""
+        return tuple(int(v) for v in self.runner.getTickStats())
+
+    PSTAT = ("stars", "score", "cities", "units", "techs", "kills",
+             "tiles", "capital", "alive")
+
+    def player_stats(self, pid):
+        """End-of-game per-player snapshot as a dict (see PSTAT for keys)."""
+        vals = [int(v) for v in self.runner.getPlayerStats(int(pid))]
+        return dict(zip(self.PSTAT, vals))
+
     def _observe(self):
         r = self.runner
         done = bool(r.isGameOver())

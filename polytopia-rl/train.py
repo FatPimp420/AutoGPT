@@ -26,12 +26,20 @@ ROOT = Path(__file__).resolve().parent
 def play_selfplay_game(env, encoder, net, rng, shaping_coef, win_reward):
     """Plays one self-play game; returns (per-player trajectories, game info)."""
     obs = env.reset(rng.integers(1 << 30), rng.integers(1 << 30))
-    trajs = {p: Trajectory() for p in range(env.n_players)}
-    prev_diff = {p: 0.0 for p in range(env.n_players)}
+    n = env.n_players
+    trajs = {p: Trajectory() for p in range(n)}
+    prev_diff = {p: 0.0 for p in range(n)}
     steps = 0
+
+    # progression tracking (sampled once per game turn, not per action)
+    first_capture, first_elim = -1, -1        # tick of first city gain / elimination
+    _, _, prev_stars = env.tick_stats()
+    stars_gen = 0                             # total stars earned across seats (proxy)
+    prev_tick = obs["tick"]
+
     while not obs["done"]:
         p = obs["player"]
-        diff = obs["scores"][p] - max(obs["scores"][q] for q in range(env.n_players) if q != p)
+        diff = obs["scores"][p] - max(obs["scores"][q] for q in range(n) if q != p)
         if trajs[p].steps:  # shaping reward for this player's previous action
             trajs[p].steps[-1].reward += shaping_coef * (diff - prev_diff[p])
         prev_diff[p] = diff
@@ -42,10 +50,36 @@ def play_selfplay_game(env, encoder, net, rng, shaping_coef, win_reward):
         obs = env.step(idx)
         steps += 1
 
-    for p in range(env.n_players):
+        if obs.get("tick", prev_tick) != prev_tick and not obs["done"]:
+            prev_tick = obs["tick"]
+            cities, alive, stars = env.tick_stats()
+            stars_gen += max(0, stars - prev_stars)
+            prev_stars = stars
+            if first_capture < 0 and cities > n:
+                first_capture = prev_tick
+            if first_elim < 0 and alive < n:
+                first_elim = prev_tick
+
+    for p in range(n):
         if trajs[p].steps:
             trajs[p].steps[-1].reward += win_reward * obs["win"][p]
-    info = {"steps": steps, "ticks": obs["tick"], "scores": obs["scores"], "win": obs["win"]}
+
+    # snapshot the winner (decisive winner, else the top-scoring seat)
+    win = obs["win"]
+    winner = win.index(1) if 1 in win else int(np.argmax(obs["scores"]))
+    w = env.player_stats(winner)
+    _, alive_final, _ = env.tick_stats()
+    tiles = env.board_size * env.board_size
+    info = {
+        "steps": steps, "ticks": obs["tick"], "scores": obs["scores"], "win": win,
+        "decisive": 1 if 1 in win else 0,
+        "winner_cities": w["cities"], "winner_techs": w["techs"],
+        "winner_kills": w["kills"], "winner_stars": w["stars"],
+        "map_control": round(w["tiles"] / tiles, 4),
+        "elims": n - alive_final,
+        "stars_gen": stars_gen,
+        "first_capture": first_capture, "first_elim": first_elim,
+    }
     return list(trajs.values()), info
 
 
