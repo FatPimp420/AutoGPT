@@ -25,6 +25,33 @@ echo "==> patching Tribes for CONQUEST mode (MAX_TURNS settable at runtime)"
 sed -i 's/^    static final int MAX_TURNS = 30;/    public static int MAX_TURNS = 30;/' \
   "$ROOT/Tribes/src/core/Constants.java"
 
+echo "==> patching GameState for map-size override (3-arg init)"
+# RLGameRunner calls gs.init(seed, tribes, mapSizeOverride) so games can use a
+# non-default board size; upstream only has the 2-arg init. Add an overload that
+# honors the override when > 0, else falls back to DEFAULT_MAP_SIZE. Idempotent.
+python3 - "$ROOT/Tribes/src/core/game/GameState.java" <<'PY'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+if 'int mapSizeOverride' not in s:
+    marker = "    void init(String filename) {"
+    overload = (
+"    void init(long levelgen_seed, Types.TRIBE[] tribes, int mapSizeOverride) {\n"
+"        LevelGenerator levelGen = new LevelGenerator(levelgen_seed);\n"
+"        int sz = mapSizeOverride > 0 ? mapSizeOverride : TribesConfig.DEFAULT_MAP_SIZE[tribes.length-1];\n"
+"        levelGen.init(sz, 3, 4, 0.5, tribes);\n"
+"        levelGen.generate();\n"
+"        String[] lines = levelGen.gelLevelLines();\n"
+"        initGameState(lines);\n"
+"    }\n\n"
+    )
+    s = s.replace(marker, overload + marker, 1)
+    open(p, "w").write(s)
+    print("  patched GameState.java")
+else:
+    print("  already patched")
+PY
+
 echo "==> compiling Tribes + shim"
 cd "$ROOT/Tribes"
 # Always rebuild so the CONQUEST patch (and any re-clone) is reflected.
