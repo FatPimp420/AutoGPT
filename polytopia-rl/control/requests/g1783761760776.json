@@ -1,0 +1,14 @@
+{
+  "id": "g1783761760776",
+  "tribes": [
+    "XIN_XI",
+    "IMPERIUS"
+  ],
+  "seats": [
+    "policy",
+    "policy-greedy"
+  ],
+  "mode": "CONQUEST",
+  "seed": 746338377,
+  "map_size": 30
+}
