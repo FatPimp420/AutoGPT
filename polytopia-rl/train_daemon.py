@@ -42,7 +42,12 @@ from train import play_selfplay_game
 ROOT = Path(__file__).resolve().parent
 RUNS = ROOT / "runs"
 CKPT = ROOT / "checkpoints" / "policy.pt"
-SAVE_EVERY = 25          # iterations between checkpoint + replay refresh
+SAVE_EVERY = 5           # iterations between checkpoint + replay refresh.
+                         # Kept well below the number of iterations that fit in
+                         # one container-uptime window (the environment is
+                         # reclaimed ~hourly, ~2.5 min/iter => ~20 iters/window)
+                         # so a checkpoint is pushed to the branch and survives
+                         # each rollback instead of resuming from the same iter.
 PUBLISH_EVERY_SEC = 240  # wall-clock seconds between dashboard publishes
                          # (time-based so slow modes still refresh promptly)
 
